@@ -12,14 +12,15 @@ import random
 import metrics
 import tensorflow as tf
 from metrics import log, Stopwatch
-
+import numpy as np
 
 '''
 Internal agent config
 '''
 debug = True
-debug_all = False
+debug_verbose = False
 endpoints = {}
+device = 'cpu'
 tf.enable_eager_execution()
 # let an example map size be 20x40, so each player's building area is 20x20
     
@@ -30,7 +31,7 @@ class Scud(object):
         Initialize Bot.
         Load all game state information.
         '''
-        if debug_all and debug:
+        if debug_verbose and debug:
             log("Testing tensorflow")
             s = Stopwatch()
             print("TensorFlow version: {}".format(tf.VERSION))
@@ -62,7 +63,7 @@ class Scud(object):
                        "ENERGY":self.game_state['gameDetails']['buildingPrices']['ENERGY']}
 
         if debug:
-            if debug_all:
+            if debug_verbose:
                 log("full_map: " + str(self.full_map))
             log("rows: " + str(self.rows))
             log("columns: " + str(self.columns))
@@ -76,8 +77,9 @@ class Scud(object):
 
         # getting inputs
         with tf.name_scope("shaping_inputs") as scope:
-            log("Shaping inputs...")
-            s = Stopwatch()
+            if debug:
+                log("Shaping inputs...")
+                s = Stopwatch()
 
             pb = tf.one_hot(indices=self.player_buildings, depth=4, axis=-1, name="player_buildings") # 20x20x4
             ob = tf.one_hot(indices=self.opponent_buildings, depth=4, axis=-1, name="opp_buildings") # 20x20x4
@@ -88,34 +90,11 @@ class Scud(object):
             self.non_spatial = list(self.player_info.values())[1:] + list(self.opponent_info.values())[1:] + list(self.prices.values()) # 11x1
             self.spatial = tf.concat([pb, ob, proj], axis=-1) # 20x20x14
             self.spatial = tf.expand_dims(self.spatial, axis=0)
-            #log(self.spatial.shape)
-            #log(non_spatial)
-            log("Done shaping inputs! Took " + s.delta)
-        log("Hello!!")
-        
-        net = tf.layers.conv2d(self.spatial, 32, [3, 3],
-                    strides=1,
-                    padding='SAME',
-                    activation=tf.nn.relu,
-                    kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                    name="conv1") # ok well this takes 5 seconds
+
+            if debug:
+                log("Done shaping inputs! Took " + s.delta)
 
         return None
-        
-    # def add_base(self):
-    #     if debug:
-    #         log("Adding base")
-    #         s = Stopwatch()
-    #     with tf.name_scope("adding_base") as scope:
-    #         log("HELP ME")
-
-    #         # print(net.shape)
-
-
-    #     if debug:
-    #         log("Finished adding base. Took: " + s.delta)
-
-    #     return None
 
     def loadState(self,state_location):
         '''
@@ -270,22 +249,31 @@ class Scud(object):
         return indexes
                 
         
-    def generateAction(self):
+    def generate_action(self):
         '''
-        Place your bot logic here !
-        
-        - If there is an opponent attack unit on a row, and you have enough energy for a defense
-             Build a defense at a random unoccupied location on that row if it is undefended.
-        - Else If you have enough energy for the most expensive building 
-             Build a random building type at a random unoccupied location
-        - Else: 
-             Save energy until you have enough for the most expensive building
-             
-        Building Types :
-            0 : Defense Building
-            1 : Attack Building
-            2 : Energy Building
+        Scud model estimator
         '''
+        log("Running conv2d on " + device)
+        with tf.device('/' + device + ':0'):
+            net = self.add_base()
+
+        ## loading the state (for RNN stuffs)
+        if debug:
+            log("Loading state")
+            sss = Stopwatch()
+        internal_state = np.load('scudstate.npy') # takes ~ 0.031s
+        if debug:
+            log("State loaded. Took: " + sss.delta)
+
+        ## saving the state (for RNN stuffs)
+        if debug:
+            log("Saving state")
+            ss = Stopwatch()
+        new_state = None
+        np.save('scudstate.npy')
+        if debug:
+            log("State saved. Took: " + ss.delta)
+
         lanes = []
         x,y,building = 0,0,0
         #check all lanes for an attack unit
@@ -311,13 +299,13 @@ class Scud(object):
             x = random.randint(0,self.rows)
             y = random.randint(0,int(self.columns/2)-1)
         else:
-            self.writeDoNothing()
+            self.write_no_op()
             return None
         
-        self.writeCommand(x,y,building)
+        self.write_action(x,y,building)
         return x,y,building
     
-    def writeCommand(self,x,y,building):
+    def write_action(self,x,y,building):
         '''
         command in form : x,y,building_type
         '''
@@ -326,7 +314,7 @@ class Scud(object):
         outfl.close()
         return None
 
-    def writeDoNothing(self):
+    def write_no_op(self):
         '''
         command in form : x,y,building_type
         '''
@@ -335,9 +323,51 @@ class Scud(object):
         outfl.close()
         return None
 
+    def add_base(self):
+        if debug:
+            log("Adding base")
+            s = Stopwatch()
+        with tf.name_scope("adding_base") as scope:
+            ss = Stopwatch()
+            net = tf.layers.conv2d(self.spatial, 32, [3, 3],
+                        strides=1,
+                        padding='SAME',
+                        activation=tf.nn.relu,
+                        name="conv1") # ok well this takes 5 seconds
+            log("1st conv: " + ss.delta)
+            ss = Stopwatch()
+            net = tf.layers.conv2d(net, 32, [3, 3],
+                        strides=1,
+                        padding='SAME',
+                        activation=tf.nn.relu,
+                        name="conv2") # ok well this takes 5 seconds
+            log("2nd conv: " + ss.delta)
+            ss = Stopwatch()
+            net = tf.layers.conv2d(net, 32, [3, 3],
+                        strides=1,
+                        padding='SAME',
+                        activation=tf.nn.relu,
+                        name="conv3") # ok well this takes 5 seconds
+            log("3rd conv: " + ss.delta)
+            ss = Stopwatch()
+            net = tf.layers.conv2d(net, 32, [3, 3],
+                        strides=1,
+                        padding='SAME',
+                        activation=tf.nn.relu,
+                        name="conv4") # ok well this takes 5 seconds
+            log("4th conv: " + ss.delta)
+
+
+        if debug:
+            log("Finished adding base. Took: " + s.delta)
+
+        return net
+
 if __name__ == '__main__':
-    k = Stopwatch()
+    if debug:
+        k = Stopwatch()
     s = Scud('state.json')
-    s.generateAction()
-    log("Round-time was {}".format(k.delta))
+    s.generate_action()
+    if debug:
+        log("Round-time was {}".format(k.delta))
     
