@@ -18,6 +18,7 @@ import numpy as np
 Internal agent config
 '''
 debug = True
+n_base_actions = 4 # number of base actions -- 0=NO OP, 1=DEFENSE, 2=OFFENSE, 3=ENERGY...
 debug_verbose = False
 endpoints = {}
 device = 'cpu'
@@ -256,6 +257,19 @@ class Scud(object):
         log("Running conv2d on " + device)
         with tf.device('/' + device + ':0'):
             net = self.add_base()
+            print("state shape: ", net.shape) # (1, 20, 20, 32)
+
+        # split into non-spatial and spatial action path
+        a0 = self.get_non_spatial(net)
+        command = int(a0) # now an int between 0 and 3
+        if debug:
+            log("a0 = " + str(a0))
+
+        coords = self.get_spatial(net)
+        x = int(coords[0])
+        y = int(coords[1])
+        if debug:
+            log("x, y = " + str(x) + ", " + str(y))
 
         ## loading the state (for RNN stuffs)
         if debug:
@@ -270,9 +284,11 @@ class Scud(object):
             log("Saving state")
             ss = Stopwatch()
         new_state = None
-        np.save('scudstate.npy')
+        np.save('scudstate.npy', new_state)
         if debug:
             log("State saved. Took: " + ss.delta)
+
+
 
         lanes = []
         x,y,building = 0,0,0
@@ -322,6 +338,58 @@ class Scud(object):
         outfl.write("")
         outfl.close()
         return None
+
+    def get_spatial(self, net):
+        '''
+        Gets the spatial action of the network
+        '''
+        if debug:
+            log("getting spatial action")
+            s = Stopwatch()
+        net = tf.layers.conv2d(self.spatial, 32, [3, 3],
+            strides=1,
+            padding='SAME',
+            activation=tf.nn.relu,
+            name="finalConv")
+        net = tf.layers.conv2d(self.spatial, 1, [1, 1],
+            strides=1,
+            padding='SAME',
+            name="conv1x1")
+
+        flat = tf.layers.flatten(net)
+        dist = tf.distributions.Categorical(logits=flat)
+        sample = dist.sample()
+
+        coords = tf.unravel_index(sample, [self.rows, self.columns/2])
+
+        if debug:
+            log("Finished spatial action inference. Took: " + s.delta)
+        return coords
+
+
+    def get_non_spatial(self, net):
+        '''
+        Infers the non-spatial action of the network
+        '''
+        if debug:
+            log("Getting non-spatial action")
+            s = Stopwatch()
+        non_spatial = tf.layers.dense(tf.layers.flatten(net), 256,
+                    activation=tf.nn.relu,
+                    name="non_spatial")
+        a0 = tf.layers.dense(non_spatial, n_base_actions,
+                    name="a0")
+
+        # TODO: possibly softmax this and then transform it into an int from 0 - 4
+        # possibly use tf autoregressive distribution
+        dist = tf.distributions.Categorical(logits=a0)
+        sample = dist.sample()
+
+        if debug:
+            log("Finished non-spatial action. Took: " + s.delta)
+
+        return sample
+        
 
     def add_base(self):
         if debug:
