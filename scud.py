@@ -351,7 +351,7 @@ class Scud(object):
             padding='SAME',
             activation=tf.nn.relu,
             name="finalConv")
-        net = tf.layers.conv2d(self.spatial, 1, [1, 1],
+        net = tf.layers.conv2d(net, 1, [1, 1],
             strides=1,
             padding='SAME',
             name="conv1x1")
