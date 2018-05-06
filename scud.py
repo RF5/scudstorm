@@ -13,17 +13,26 @@ import metrics
 import tensorflow as tf
 from metrics import log, Stopwatch
 import numpy as np
+import util
 
 '''
 Internal agent config
 '''
-debug = True
+debug = False
 n_base_actions = 4 # number of base actions -- 0=NO OP, 1=DEFENSE, 2=OFFENSE, 3=ENERGY...
 debug_verbose = False
 endpoints = {}
 device = 'cpu'
 tf.enable_eager_execution()
 # let an example map size be 20x40, so each player's building area is 20x20
+
+if debug_verbose and debug:
+    log("Testing tensorflow")
+    s = Stopwatch()
+    print("TensorFlow version: {}".format(tf.VERSION))
+    print("Eager execution: {}".format(tf.executing_eagerly()))
+
+    log("Finished, took: " + s.delta)
     
 class Scud(object):
     
@@ -32,13 +41,6 @@ class Scud(object):
         Initialize Bot.
         Load all game state information.
         '''
-        if debug_verbose and debug:
-            log("Testing tensorflow")
-            s = Stopwatch()
-            print("TensorFlow version: {}".format(tf.VERSION))
-            print("Eager execution: {}".format(tf.executing_eagerly()))
-
-            log("Finished, took: " + s.delta)
 
         try:
             self.game_state = self.loadState(state_location)
@@ -63,9 +65,7 @@ class Scud(object):
                        "DEFENSE":self.game_state['gameDetails']['buildingPrices']['DEFENSE'],
                        "ENERGY":self.game_state['gameDetails']['buildingPrices']['ENERGY']}
 
-        if debug:
-            if debug_verbose:
-                log("full_map: " + str(self.full_map))
+        if debug and debug_verbose:
             log("rows: " + str(self.rows))
             log("columns: " + str(self.columns))
             log("player_buildings: " + str(self.player_buildings))
@@ -89,11 +89,16 @@ class Scud(object):
             proj = tf.reshape(proj, [k[0], k[1] / 2, 6]) # 20x20x6. Only works for single misssiles
 
             self.non_spatial = list(self.player_info.values())[1:] + list(self.opponent_info.values())[1:] + list(self.prices.values()) # 11x1
-            self.spatial = tf.concat([pb, ob, proj], axis=-1) # 20x20x14
+            self.non_spatial = tf.cast(self.non_spatial, dtype=tf.float32)
+            # broadcasting the non-spatial features to the channel dimension
+            broadcast_stats = tf.tile(tf.expand_dims(tf.expand_dims(self.non_spatial, axis=0), axis=0), [k[0], k[1] / 2, 1]) # now 20x20x11
+
+            # adding all the inputs together via the channel dimension
+            self.spatial = tf.concat([pb, ob, proj, broadcast_stats], axis=-1) # 20x20x(14 + 11)
             self.spatial = tf.expand_dims(self.spatial, axis=0)
 
             if debug:
-                log("Done shaping inputs! Took " + s.delta)
+                log("Finished shaping inputs. Took " + s.delta)
 
         return None
 
@@ -200,7 +205,6 @@ class Scud(object):
     
 
     def checkDefense(self, lane_number):
-
         '''
         Checks a lane.
         Returns True if lane contains defense unit.
@@ -254,14 +258,15 @@ class Scud(object):
         '''
         Scud model estimator
         '''
-        log("Running conv2d on " + device)
+        if debug:
+            log("Running conv2d on " + device)
         with tf.device('/' + device + ':0'):
             net = self.add_base()
-            print("state shape: ", net.shape) # (1, 20, 20, 32)
+            #print("state shape: ", net.shape) # (1, 20, 20, 32)
 
-        # split into non-spatial and spatial action path
+        ## split into non-spatial and spatial action path
         a0 = self.get_non_spatial(net)
-        command = int(a0) # now an int between 0 and 3
+        building = int(a0) # now an int between 0 and 3
         if debug:
             log("a0 = " + str(a0))
 
@@ -275,7 +280,7 @@ class Scud(object):
         if debug:
             log("Loading state")
             sss = Stopwatch()
-        internal_state = np.load('scudstate.npy') # takes ~ 0.031s
+        _ = np.load('scudstate.npy') # takes ~ 0.031s
         if debug:
             log("State loaded. Took: " + sss.delta)
 
@@ -283,61 +288,14 @@ class Scud(object):
         if debug:
             log("Saving state")
             ss = Stopwatch()
-        new_state = None
+        new_state = net
         np.save('scudstate.npy', new_state)
         if debug:
             log("State saved. Took: " + ss.delta)
-
-
-
-        lanes = []
-        x,y,building = 0,0,0
-        #check all lanes for an attack unit
-        for i in range(self.rows):
-            if len(self.getUnOccupied(self.player_buildings[i])) == 0:
-                #cannot place anything in a lane with no available cells.
-                continue
-            elif ( self.checkAttack(i) and (self.player_info['energy'] >= self.prices['DEFENSE']) and (self.checkMyDefense(i)) == False):
-                #place defense unit if there is an attack building and you can afford a defense building
-                lanes.append(i)
-        #lanes variable will now contain information about all lanes which have attacking units
-        #A count of 0 would mean all lanes are not under attack
-        if (len(lanes) > 0) :
-            #Chose a random lane under attack to place a defensive unit
-            #Chose a cell that is unoccupied in that lane
-            building = 0
-            y = random.choice(lanes)
-            x = random.choice(self.getUnOccupied(self.player_buildings[y]))
-        #otherwise, build a random building type at a random unoccupied location
-        # if you can afford the most expensive building
-        elif  self.player_info['energy'] >= max(s.prices.values()):
-            building = random.choice([0,1,2])
-            x = random.randint(0,self.rows)
-            y = random.randint(0,int(self.columns/2)-1)
-        else:
-            self.write_no_op()
-            return None
         
-        self.write_action(x,y,building)
+        util.write_action(x,y,building)
         return x,y,building
-    
-    def write_action(self,x,y,building):
-        '''
-        command in form : x,y,building_type
-        '''
-        outfl = open('command.txt','w')
-        outfl.write(','.join([str(x),str(y),str(building)]))
-        outfl.close()
-        return None
 
-    def write_no_op(self):
-        '''
-        command in form : x,y,building_type
-        '''
-        outfl = open('command.txt','w')
-        outfl.write("")
-        outfl.close()
-        return None
 
     def get_spatial(self, net):
         '''
@@ -396,35 +354,26 @@ class Scud(object):
             log("Adding base")
             s = Stopwatch()
         with tf.name_scope("adding_base") as scope:
-            ss = Stopwatch()
             net = tf.layers.conv2d(self.spatial, 32, [3, 3],
                         strides=1,
                         padding='SAME',
                         activation=tf.nn.relu,
                         name="conv1") # ok well this takes 5 seconds
-            log("1st conv: " + ss.delta)
-            ss = Stopwatch()
             net = tf.layers.conv2d(net, 32, [3, 3],
                         strides=1,
                         padding='SAME',
                         activation=tf.nn.relu,
                         name="conv2") # ok well this takes 5 seconds
-            log("2nd conv: " + ss.delta)
-            ss = Stopwatch()
             net = tf.layers.conv2d(net, 32, [3, 3],
                         strides=1,
                         padding='SAME',
                         activation=tf.nn.relu,
                         name="conv3") # ok well this takes 5 seconds
-            log("3rd conv: " + ss.delta)
-            ss = Stopwatch()
             net = tf.layers.conv2d(net, 32, [3, 3],
                         strides=1,
                         padding='SAME',
                         activation=tf.nn.relu,
                         name="conv4") # ok well this takes 5 seconds
-            log("4th conv: " + ss.delta)
-
 
         if debug:
             log("Finished adding base. Took: " + s.delta)
