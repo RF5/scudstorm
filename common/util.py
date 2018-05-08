@@ -17,7 +17,7 @@ def get_logdir(name=None):
 	'''
 	returns the log dir corresponding to the supplied name
 	'''
-	base_dir = os.path.dirname((os.path.abspath(__file__))) # now in scudstorm directory
+	base_dir = os.path.dirname(os.path.dirname((os.path.abspath(__file__)))) # now in scudstorm directory
 	if name is not None:
 		log_dir = os.path.join(base_dir, 'logs', str(name))
 	else:
@@ -29,6 +29,8 @@ def get_logdir(name=None):
 def util_log(msg):
 	print(">> UTIL LOG >>\t", msg)
 
+
+
 def write_no_op():
 	'''
 	command in form : x,y,building_type
@@ -38,7 +40,7 @@ def write_no_op():
 	outfl.close()
 	return None
 
-def write_action(x,y,building):
+def write_action(x,y,building, path=None):
 	'''
 	command in form : x,y,building_type
 
@@ -52,7 +54,12 @@ def write_action(x,y,building):
 		write_no_op()
 		return
 
-	outfl = open('command.txt','w')
-	outfl.write(','.join([str(x),str(y),str(building)]))
-	outfl.close()
+	if path == None:
+		outfl = open('command.txt','w')
+		outfl.write(','.join([str(x),str(y),str(building)]))
+		outfl.close()
+	else:
+		outfl = open(os.path.join(path, 'command.txt'),'w')
+		outfl.write(','.join([str(x),str(y),str(building)]))
+		outfl.close()
 	return None

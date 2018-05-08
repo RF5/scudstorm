@@ -202,56 +202,6 @@ class Scud(object):
             projectiles.append(temp)
             
         return projectiles
-    
-
-    def checkDefense(self, lane_number):
-        '''
-        Checks a lane.
-        Returns True if lane contains defense unit.
-        '''
-        
-        lane = list(self.opponent_buildings[lane_number])
-        if (lane.count(2) > 0):
-            return True
-        else:
-            return False
-
-    def checkMyDefense(self, lane_number):
-
-        '''
-        Checks a lane.
-        Returns True if lane contains defense unit.
-        '''
-        
-        lane = list(self.player_buildings[lane_number])
-        if (lane.count(2) > 0):
-            return True
-        else:
-            return False
-    
-    def checkAttack(self, lane_number):
-
-        '''
-        Checks a lane.
-        Returns True if lane contains attack unit.
-        '''
-        
-        lane = list(self.opponent_buildings[lane_number])
-        if (lane.count(1) > 0):
-            return True
-        else:
-            return False
-    
-    def getUnOccupied(self,lane):
-        '''
-        Returns index of all unoccupied cells in a lane
-        '''
-        indexes = []
-        for i in range(len(lane)):
-            if lane[i] == 0 :
-                indexes.append(i)
-        
-        return indexes
                 
         
     def generate_action(self):
