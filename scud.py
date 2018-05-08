@@ -9,16 +9,16 @@ Author: Matthew Baas
 import json
 import os
 import random
-import metrics
+import common.metrics
 import tensorflow as tf
-from metrics import log, Stopwatch
+from common.metrics import log, Stopwatch
 import numpy as np
-import util
+import common.util as util
 
 '''
 Internal agent config
 '''
-debug = False
+debug = True
 n_base_actions = 4 # number of base actions -- 0=NO OP, 1=DEFENSE, 2=OFFENSE, 3=ENERGY...
 debug_verbose = False
 endpoints = {}

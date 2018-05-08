@@ -5,11 +5,11 @@ Entelect Challenge 2018
 Author: Matthew Baas
 '''
 import tensorflow as tf
-import util
+import common.util
 import os
 import argparse
 import time
-from metrics import Stopwatch
+from common.metrics import Stopwatch
 from scud import Scud
 
 summary = tf.contrib.summary
