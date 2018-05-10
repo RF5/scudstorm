@@ -7,30 +7,21 @@ def worker(remote, parent_remote, env_fn_wrapper):
 	while True:
 		cmd, data = remote.recv()
 		if cmd == 'step':
-			ob, reward, done, info = env.step(data)
+			ob = env.step(data)
 			
-			remote.send((ob, reward, done, info))
+			remote.send((ob,))
 		elif cmd == 'reset':
-			environ_state = env.reset()
+			sucess = env.reset()
 
-			ob = environ_state[0].observation
-			info = environ_state[0].discount
-			stepType = environ_state[0].step_type
-			if stepType == environment.StepType.LAST: # if current step is the terminal step
-				done = True
-			else:
-				done = False
-			reward = environ_state[0].reward
-
-			remote.send((ob, reward, done, info))
+			remote.send((sucess,))
 		elif cmd == 'close':
 			remote.close()
 			break
-		elif cmd == 'get_spaces':
-			# Returns the action space and observation space
-			remote.send((env.action_spec(), env.observation_spec()))
-		elif cmd == 'action_spec':
-			remote.send(env.action_spec())
+		# elif cmd == 'get_spaces':
+		# 	# Returns the action space and observation space
+		# 	remote.send((env.action_spec(), env.observation_spec()))
+		# elif cmd == 'action_spec':
+		# 	remote.send(env.action_spec())
 		else:
 			raise NotImplementedError
 
@@ -76,8 +67,9 @@ class SubprocEnvManager(object):
 
 			remote.send(('step', action))
 		results = [remote.recv() for remote in self.remotes]
-		obs, rews, dones, infos = zip(*results)
-		return np.stack(obs), np.stack(rews), np.stack(dones), infos
+		#obs, rews, dones, infos = zip(*results)
+		obs = zip(*results)
+		return np.stack(obs)
 
 	def reset(self):
 		for remote in self.remotes:
@@ -87,16 +79,16 @@ class SubprocEnvManager(object):
 		print("============\nCLEARED RESET\n============")
 		return k
 
-	def reset_task(self):
-		for remote in self.remotes:
-			remote.send(('reset_task', None))
-		return np.stack([remote.recv() for remote in self.remotes])
+	# def reset_task(self):
+	# 	for remote in self.remotes:
+	# 		remote.send(('reset_task', None))
+	# 	return np.stack([remote.recv() for remote in self.remotes])
 
-	def action_spec(self):
-		for remote in self.remotes:
-			remote.send(('action_spec', None))
-		results = [remote.recv() for remote in self.remotes]
-		return results
+	# def action_spec(self):
+	# 	for remote in self.remotes:
+	# 		remote.send(('action_spec', None))
+	# 	results = [remote.recv() for remote in self.remotes]
+	# 	return results
 
 	def close(self):
 		if self.closed:

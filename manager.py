@@ -11,7 +11,7 @@ from common.subproc_env_manager import SubprocEnvManager
 from pyenv import Env
 
 # Config vars
-n_envs = 5
+n_envs = 1
 console_debug = False
 
 def main():
@@ -24,9 +24,13 @@ def main():
             return env_inside
 
         return env_fn
-
+    print('MANAGER: creating envs')
     env = SubprocEnvManager([make_env(s) for s in env_names])
-
+    test_actions = [(0, 0, 0), (0, 0, 3), (1, 2, 2)]
+    print('manager: taking step')
+    env.step(test_actions)
+    print('manager: attempting to terminate')
+    env.close()
 
 
 if __name__ == '__main__':

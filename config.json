@@ -1,0 +1,6 @@
+{
+  "round-state-output-location": "./tower-defence-matches",
+  "max-runtime-ms": 5000,
+  "player-a": "./",
+  "player-b": "./python3"
+}

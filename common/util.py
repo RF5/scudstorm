@@ -48,7 +48,7 @@ def write_action(x,y,building, path=None):
 	regardless of what x and y are
 	'''
 	if debug:
-		util_log("Writing action: x = " + str(x) + ", y = " + str(y) + "\tBuilding = " + action_names[building])
+		util_log("Writing action: x = " + str(x) + ", y = " + str(y) + "\tBuilding = " + action_names[building] + "\tTo:" + str(path))
 
 	if building == 0:
 		write_no_op()

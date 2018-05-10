@@ -19,3 +19,7 @@ class Stopwatch(object):
 	def delta(self):
 		endtime = int(round(time.time() * 1000))
 		return str((endtime - self.startime) / 1000) + 's'
+
+	def deltaT(self):
+		endT = int(round(time.time() * 1000))
+		return (endT - self.startime)/1000;
