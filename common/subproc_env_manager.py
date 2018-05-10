@@ -1,5 +1,6 @@
 import numpy as np
 from multiprocessing import Process, Pipe
+import time
 
 def worker(remote, parent_remote, env_fn_wrapper):
 	parent_remote.close()
@@ -15,6 +16,8 @@ def worker(remote, parent_remote, env_fn_wrapper):
 
 			remote.send((sucess,))
 		elif cmd == 'close':
+			env.cleanup()
+			success = env.close()
 			remote.close()
 			break
 		# elif cmd == 'get_spaces':
@@ -56,6 +59,7 @@ class SubprocEnvManager(object):
 		for remote in self.work_remotes:
 			remote.close()
 
+		self.reset()
 		# The action space is non-stationary, so these lines don't really make sense. 
 		#self.remotes[0].send(('get_spaces', None))
 		#self.action_space, self.observation_space = self.remotes[0].recv()
@@ -63,7 +67,6 @@ class SubprocEnvManager(object):
 	def step(self, actions):
 		#print("==========\nENTERING STEP FUNCTION\n=============")
 		for remote, action in zip(self.remotes, actions): # so we feed in an array of actions for each agent
-			action = [action]
 
 			remote.send(('step', action))
 		results = [remote.recv() for remote in self.remotes]
@@ -91,6 +94,7 @@ class SubprocEnvManager(object):
 	# 	return results
 
 	def close(self):
+		print("subproc_env_manager: attempting to close")
 		if self.closed:
 			return
 

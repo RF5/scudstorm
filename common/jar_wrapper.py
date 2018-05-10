@@ -7,30 +7,50 @@ Author: Matthew Baas
 
 import os
 import time
+import os
 
-# Config (generics)
-in_filename = 'env_out.txt'
-wrapper_out_filename = 'wrapper_out.txt'
+def fileLog(msg):
+    with open('mylog.txt', 'a') as f:
+        f.write(str(msg) + "\n")
 
 def main():
+    # Config (generics)
+    wrapper_out_filename = 'wrapper_out.txt'
+
     this_dir = os.path.dirname(os.path.abspath(__file__)) # inside our running dir
-    print("our inner dir = ", this_dir)
-    with open(wrapper_out_filename, 'w') as f:
+    
+    command_name = os.path.join(this_dir, 'command2.txt')
+    proper_name = os.path.join(this_dir, 'command.txt')
+
+    fileLog("our inner dir = " + str(this_dir))
+    with open(os.path.join(this_dir, wrapper_out_filename), 'w') as f:
         f.write('1')
 
-    while True:
-        time.sleep(0.1)
-        try:
-            with open(in_filename, 'r') as ff:
-                k = ff.read()
-                k = int(k)
-                if k == 1:
-                    with open(wrapper_out_filename, 'w') as fff:
-                        fff.write('0') # waiting for a new turn
-                    # they want start of a new step, so end this and run a turn
-                    break
-        except:
-            pass
+    fileLog("help me! command_name = " + str(command_name))
+    while os.path.isfile(command_name) == False:
+        time.sleep(0.05)
+
+    os.rename(command_name, proper_name)
+    fileLog("Found it!! Exiting to next round!")
+
+    with open(os.path.join(this_dir, wrapper_out_filename), 'w') as f:
+        f.write('0')
+
+    # while True:
+    #     try:
+    #         with open(os.path.join(this_dir, in_filename), 'r') as ff:
+    #             k = ff.read()
+    #             k = int(k)
+    #             if k == 1:
+    #                 fileLog("Saw 1, writing 0")
+    #                 with open(os.path.join(this_dir, wrapper_out_filename), 'w') as fff:
+    #                     fff.write('0') # waiting for a new turn
+    #                 # they want start of a new step, so end this and run a turn
+    #                 fileLog("just wrote 0, now breaking")
+    #                 break
+    #     except:
+    #         pass
+    #     time.sleep(0.02)
 
 if __name__ == '__main__':
     main()

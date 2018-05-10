@@ -11,7 +11,7 @@ from common.metrics import log
 
 debug = True
 ## Config stuff that relate to the game engine
-action_names = ['no_op', 'attack', 'defense', 'energy']
+action_names = ['attack', 'defense', 'energy', 'no_op']
 
 def get_logdir(name=None):
 	'''
@@ -29,18 +29,21 @@ def get_logdir(name=None):
 def util_log(msg):
 	print(">> UTIL LOG >>\t", msg)
 
+def write_prep_action(x,y,building, path):
+	if debug:
+		util_log("Writing action: x = " + str(x) + ", y = " + str(y) + "\tBuilding = " + action_names[building] + "\tTo:")
+		print(os.path.join(path, 'command2.txt'))
 
+	outfl = open(os.path.join(path, 'command2.txt'),'w')
 
-def write_no_op():
-	'''
-	command in form : x,y,building_type
-	'''
-	outfl = open('command.txt','w')
-	outfl.write("")
+	if action_names[building] == 'no_op':
+		outfl.write("")
+	else:
+		outfl.write(','.join([str(x),str(y),str(building)]))
 	outfl.close()
-	return None
+	return
 
-def write_action(x,y,building, path=None):
+def write_action(x,y,building, path):
 	'''
 	command in form : x,y,building_type
 
@@ -48,18 +51,14 @@ def write_action(x,y,building, path=None):
 	regardless of what x and y are
 	'''
 	if debug:
-		util_log("Writing action: x = " + str(x) + ", y = " + str(y) + "\tBuilding = " + action_names[building] + "\tTo:" + str(path))
+		util_log("Writing action: x = " + str(x) + ", y = " + str(y) + "\tBuilding = " + action_names[building] + "\tTo:")
+		print(os.path.join(path, 'command.txt'))
 
-	if building == 0:
-		write_no_op()
-		return
-
-	if path == None:
-		outfl = open('command.txt','w')
+	outfl = open('command.txt','w')
+	if action_names[building] == 'no_op':
+		outfl.write("")
+	else:	
 		outfl.write(','.join([str(x),str(y),str(building)]))
-		outfl.close()
-	else:
-		outfl = open(os.path.join(path, 'command.txt'),'w')
-		outfl.write(','.join([str(x),str(y),str(building)]))
-		outfl.close()
-	return None
+	
+	outfl.close()
+	return
