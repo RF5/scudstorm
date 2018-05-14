@@ -15,6 +15,7 @@ from common.metrics import log, Stopwatch
 import numpy as np
 import common.util as util
 
+Net = tf.contrib.eager.Network
 '''
 Internal agent config
 '''
@@ -36,14 +37,15 @@ if debug_verbose and debug:
     
 class Scud(object):
     
-    def __init__(self,state_location):
+    def __init__(self, obs, name, debug=False):
         '''
         Initialize Bot.
         Load all game state information.
         '''
 
+        self.debug = debug
         try:
-            self.game_state = self.loadState(state_location)
+            self.game_state = obs[0]
         except IOError:
             print("Cannot load Game State")
             
@@ -65,7 +67,7 @@ class Scud(object):
                        "DEFENSE":self.game_state['gameDetails']['buildingPrices']['DEFENSE'],
                        "ENERGY":self.game_state['gameDetails']['buildingPrices']['ENERGY']}
 
-        if debug and debug_verbose:
+        if self.debug and debug_verbose:
             log("rows: " + str(self.rows))
             log("columns: " + str(self.columns))
             log("player_buildings: " + str(self.player_buildings))
@@ -78,7 +80,7 @@ class Scud(object):
 
         # getting inputs
         with tf.name_scope("shaping_inputs") as scope:
-            if debug:
+            if self.debug:
                 log("Shaping inputs...")
                 s = Stopwatch()
 
@@ -97,7 +99,7 @@ class Scud(object):
             self.spatial = tf.concat([pb, ob, proj, broadcast_stats], axis=-1) # 20x20x(14 + 11)
             self.spatial = tf.expand_dims(self.spatial, axis=0)
 
-            if debug:
+            if self.debug:
                 log("Finished shaping inputs. Took " + s.delta)
 
         return None
@@ -208,7 +210,7 @@ class Scud(object):
         '''
         Scud model estimator
         '''
-        if debug:
+        if self.debug:
             log("Running conv2d on " + device)
         with tf.device('/' + device + ':0'):
             net = self.add_base()
@@ -217,33 +219,33 @@ class Scud(object):
         ## split into non-spatial and spatial action path
         a0 = self.get_non_spatial(net)
         building = int(a0) # now an int between 0 and 3
-        if debug:
+        if self.debug:
             log("a0 = " + str(a0))
 
         coords = self.get_spatial(net)
         x = int(coords[0])
         y = int(coords[1])
-        if debug:
+        if self.debug:
             log("x, y = " + str(x) + ", " + str(y))
 
         ## loading the state (for RNN stuffs)
-        if debug:
+        if self.debug:
             log("Loading state")
             sss = Stopwatch()
         _ = np.load('scudstate.npy') # takes ~ 0.031s
-        if debug:
+        if self.debug:
             log("State loaded. Took: " + sss.delta)
 
         ## saving the state (for RNN stuffs)
-        if debug:
+        if self.debug:
             log("Saving state")
             ss = Stopwatch()
         new_state = net
         np.save('scudstate.npy', new_state)
-        if debug:
+        if self.debug:
             log("State saved. Took: " + ss.delta)
         
-        util.write_action(x,y,building)
+        #util.write_action(x,y,building)
         return x,y,building
 
 
@@ -251,7 +253,7 @@ class Scud(object):
         '''
         Gets the spatial action of the network
         '''
-        if debug:
+        if self.debug:
             log("getting spatial action")
             s = Stopwatch()
         net = tf.layers.conv2d(self.spatial, 32, [3, 3],
@@ -270,7 +272,7 @@ class Scud(object):
 
         coords = tf.unravel_index(sample, [self.rows, self.columns/2])
 
-        if debug:
+        if self.debug:
             log("Finished spatial action inference. Took: " + s.delta)
         return coords
 
@@ -279,7 +281,7 @@ class Scud(object):
         '''
         Infers the non-spatial action of the network
         '''
-        if debug:
+        if self.debug:
             log("Getting non-spatial action")
             s = Stopwatch()
         non_spatial = tf.layers.dense(tf.layers.flatten(net), 256,
@@ -293,42 +295,34 @@ class Scud(object):
         dist = tf.distributions.Categorical(logits=a0)
         sample = dist.sample()
 
-        if debug:
+        if self.debug:
             log("Finished non-spatial action. Took: " + s.delta)
 
         return sample
         
 
     def add_base(self):
-        if debug:
+        if self.debug:
             log("Adding base")
             s = Stopwatch()
         with tf.name_scope("adding_base") as scope:
-            net = tf.layers.conv2d(self.spatial, 32, [3, 3],
-                        strides=1,
-                        padding='SAME',
-                        activation=tf.nn.relu,
-                        name="conv1") # ok well this takes 5 seconds
-            net = tf.layers.conv2d(net, 32, [3, 3],
-                        strides=1,
-                        padding='SAME',
-                        activation=tf.nn.relu,
-                        name="conv2") # ok well this takes 5 seconds
-            net = tf.layers.conv2d(net, 32, [3, 3],
-                        strides=1,
-                        padding='SAME',
-                        activation=tf.nn.relu,
-                        name="conv3") # ok well this takes 5 seconds
-            net = tf.layers.conv2d(net, 32, [3, 3],
-                        strides=1,
-                        padding='SAME',
-                        activation=tf.nn.relu,
-                        name="conv4") # ok well this takes 5 seconds
+            net = self.spatial
+            for i in range(2):
+                net = tf.layers.conv2d(net, 32, [3, 3],
+                            strides=1,
+                            padding='SAME',
+                            activation=tf.nn.relu,
+                            name="conv" + str(i)) # ok well this takes 5 seconds
 
-        if debug:
+        if self.debug:
             log("Finished adding base. Took: " + s.delta)
 
         return net
+
+    def train_vars(self):
+        varss = tf.get_collection(tf.GraphKeys.VARIABLES)
+        print(type(varss))
+        print(varss)
 
 if __name__ == '__main__':
     if debug:
