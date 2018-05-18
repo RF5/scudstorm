@@ -69,7 +69,7 @@ class Env():
             self.reset()
         x, y, build = action
 
-        write_prep_action(x, y, build, path=self.run_path)
+        write_prep_action(x, y, build, path=self.run_path, debug=False)
 
         with open(self.in_file, 'w') as f:
             # we want start of a new step
@@ -116,7 +116,7 @@ class Env():
         command = 'java -jar ' + os.path.join(self.run_path, jar_name)
         if self.debug:
             print("Opened process: ", str(command))
-        self.proc = subprocess.Popen(command, cwd=self.run_path)
+        self.proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, cwd=self.run_path)
         
         self.pid = self.proc.pid
         return True

@@ -9,7 +9,7 @@ import numpy as np
 import tensorflow as tf
 from common.metrics import log
 
-debug = True
+#debug = True
 ## Config stuff that relate to the game engine
 action_names = ['attack', 'defense', 'energy', 'no_op']
 
@@ -29,7 +29,7 @@ def get_logdir(name=None):
 def util_log(msg):
 	print(">> UTIL LOG >>\t", msg)
 
-def write_prep_action(x,y,building, path):
+def write_prep_action(x,y,building, path, debug=True):
 	if debug:
 		util_log("Writing action: x = " + str(x) + ", y = " + str(y) + "\tBuilding = " + action_names[building] + "\tTo:")
 		print(os.path.join(path, 'command2.txt'))
@@ -43,7 +43,7 @@ def write_prep_action(x,y,building, path):
 	outfl.close()
 	return
 
-def write_action(x,y,building, path):
+def write_action(x,y,building, path, debug=True):
 	'''
 	command in form : x,y,building_type
 
