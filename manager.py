@@ -42,9 +42,10 @@ def main():
         obs = env.step(actions) # obs is n_envs x 1
         agents = [Scud(name=str(i), debug=True) for i in range(n_envs)]
         
-        actions = [agent(obs[i][0]) for i, agent in enumerate(agents)]
-        agents[0].train_vars()
+        actions = [agent.call(obs[i][0]) for i, agent in enumerate(agents)]
         print('>> manager >> just took step {}. Took: {}'.format(i, ss.delta))
+    # gets all the variables of the model
+    # all_variables = agents[0].model.get_weights()
 
     print('>> manager >> closing env. Took: ', sTime.delta)
     env.close()
