@@ -62,3 +62,4 @@ def write_action(x,y,building, path, debug=True):
 	
 	outfl.close()
 	return
+

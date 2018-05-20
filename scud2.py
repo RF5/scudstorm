@@ -26,7 +26,7 @@ Internal agent config
 n_base_actions = 4 # number of base actions -- 0=NO OP, 1=DEFENSE, 2=OFFENSE, 3=ENERGY...
 debug_verbose = False
 endpoints = {}
-device = 'cpu'
+device = 'gpu'
 tf.enable_eager_execution()
 # let an example map size be 20x40, so each player's building area is 20x20
     
@@ -34,26 +34,24 @@ class Scud(object):
     
     def __init__(self, name, debug=False):
         '''
-        Initialize Bot.
-        Load all game state information.
+        Build agent graph.
         '''
-
         self.debug = debug
-        
-        self.input = Layers.Input(shape=(4, 4, 25))
+        if self.debug:
+            log("Running conv2d on " + device)
+        with tf.device('/' + device + ':0'):
+            self.input = Layers.Input(shape=(4, 4, 25))
 
-        #self.model = Sequential()
+            self.base = self.add_base()
+            
+            self.get_non_spatial = self.add_non_spatial(self.base)
+            self.get_spatial = self.add_spatial(self.base)
 
-        self.base = self.add_base()
-        
-        self.get_non_spatial = self.add_non_spatial(self.base)
-        self.get_spatial = self.add_spatial(self.base)
-
-        self.model = tf.keras.models.Model(inputs=self.input, outputs=[self.get_non_spatial, self.get_spatial])
-
+            self.model = tf.keras.models.Model(inputs=self.input, outputs=[self.get_non_spatial, self.get_spatial])
+            self.tau_lineage = []
         return None
 
-    def call(self, inputs):
+    def step(self, inputs):
         try:
             self.game_state = inputs
         except IOError:
@@ -62,7 +60,6 @@ class Scud(object):
         self.full_map = self.game_state['gameMap']
         self.rows = self.game_state['gameDetails']['mapHeight']
         self.columns = self.game_state['gameDetails']['mapWidth']
-        self.command = ''
         
         self.player_buildings = self.getPlayerBuildings()
         self.opponent_buildings = self.getOpponentBuildings()
@@ -113,12 +110,6 @@ class Scud(object):
                 log("Finished shaping inputs. Took " + s.delta + "\nShape of inputs:" +  str(self.spatial.shape))
 
         return self.generate_action()
-
-    def loadState(self,state_location):
-        '''
-        Gets the current Game State json file.
-        '''
-        return json.load(open(state_location,'r'))
 
     def getPlayerInfo(self,playerType):
         '''
@@ -216,20 +207,38 @@ class Scud(object):
         return projectiles
                 
         
+    def get_flat_weights(self):
+        ## Not actually flat weights atm
+        weights = self.model.get_weights()
+        # self.weight_spec = []
+        # curw = []
+        # for w in weights:
+        #     self.weight_spec.append(w.shape)
+        #     curw.append(w.flatten())
+
+        # flatmo = tf.concat(curw, axis=0)
+        return weights
+
+    def set_flat_weights(self, params):
+        #weights = []
+        #for ind in self.weight_spec:
+        #    weights.append(tf.reshape(param_vec, shape=))
+        self.model.set_weights(params)
+
     def generate_action(self):
         '''
         Scud model estimator
         '''
+
+        a0, a1 = self.model.predict(self.spatial)
+        #probs = tf.nn.softmax(a0)
+        #sample = np.random.choice([0, 1, 2, 3], p=probs)
+
+        dist = tf.distributions.Categorical(logits=a0)
+        sample = dist.sample()
         if self.debug:
-            log("Running conv2d on " + device)
-        with tf.device('/' + device + ':0'):
-            a0, a1 = self.model.predict(self.spatial)
-            #probs = tf.nn.softmax(a0)
-            #sample = np.random.choice([0, 1, 2, 3], p=probs)
             print("a0 = ", a0, a0.shape)
-            dist = tf.distributions.Categorical(logits=a0)
-            sample = dist.sample()
-        print(sample)
+            print(sample)
         building = int(sample) # now an int between 0 and 3
         if self.debug:
             log("a0 = " + str(a0))
@@ -307,7 +316,6 @@ class Scud(object):
         a0 = Layers.Dense(n_base_actions,
                     name="a0")(non_spatial)
 
-        probs = Layers.Dense(n_base_actions, activation='softmax', name='softmax')(a0)
         # TODO: possibly softmax this and then transform it into an int from 0 - 4
         # possibly use tf autoregressive distribution
         ## Do not work with eager
@@ -343,5 +351,6 @@ if __name__ == '__main__':
 
     k = Stopwatch()
     s = Scud('www', debug=True)
+    we = s.get_flat_weights()
     log("Round-time was {}".format(k.delta))
     

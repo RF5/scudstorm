@@ -16,8 +16,8 @@ def worker(remote, parent_remote, env_fn_wrapper):
 
 			remote.send((sucess,))
 		elif cmd == 'close':
-			env.cleanup()
 			success = env.close()
+			env.cleanup()
 			remote.close()
 			break
 		# elif cmd == 'get_spaces':
@@ -72,7 +72,7 @@ class SubprocEnvManager(object):
 		results = [remote.recv() for remote in self.remotes]
 		#obs, rews, dones, infos = zip(*results)
 		obs = zip(*results)
-		return np.stack(obs)
+		return np.stack(obs, axis=-1)
 
 	def reset(self):
 		for remote in self.remotes:

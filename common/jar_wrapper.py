@@ -8,6 +8,7 @@ Author: Matthew Baas
 import os
 import time
 import os
+from shutil import copy2
 
 def fileLog(msg):
     with open('mylog.txt', 'a') as f:
@@ -29,13 +30,17 @@ def main():
     fileLog("help me! command_name = " + str(command_name))
     while os.path.isfile(command_name) == False:
         time.sleep(0.05)
+    with open(command_name, 'r') as f:
+        fileLog(f.read())
 
-    os.rename(command_name, proper_name)
+    copy2(command_name, proper_name)
+    #os.rename(command_name, proper_name)
+    
     fileLog("Found it!! Exiting to next round!")
 
     with open(os.path.join(this_dir, wrapper_out_filename), 'w') as f:
         f.write('0')
-
+    fileLog("Wrote 0 to wrapper file! We should not end on this")
     # while True:
     #     try:
     #         with open(os.path.join(this_dir, in_filename), 'r') as ff:

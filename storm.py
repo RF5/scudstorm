@@ -10,15 +10,58 @@ import os
 import argparse
 import time
 from common.metrics import Stopwatch
-from scud import Scud
+from scud2 import Scud
+import numpy as np
 
 summary = tf.contrib.summary
 
 ##############################
 ###### TRAINING CONFIG #######
 n_steps = 50
+n_generations = 2
+n_elite = 2
 
+sigma = 0.002
 ##############################
+
+def train(env, n_envs, no_op_vec):
+    print(str('='*50) + '\n' + 'Initializing agents\n' + str('='*50) )
+    
+    actions = no_op_vec
+    ## TODO: change agent layers to use xavier initializer
+    agents = [Scud(name=str(i), debug=False) for i in range(n_envs)]
+    n_params = agents[0].model.count_params()
+
+    print(str('='*50) + '\n' + 'Beginning training\n' + str('='*50) )
+    scores = []
+    for g in range(n_generations):
+        print(str('='*50) + '\n' + 'Generation ' + str(g) + '\n' + str('='*50) )
+        for i in range(n_envs):
+
+            parent_ind = np.random.randint(n_elite)
+            offspring = mutate(agents[parent_ind], g)
+
+            scores.append(rollout(env, offspring))
+
+        ss = Stopwatch()
+        print(">> storm >> taking actions: ", actions)
+        obs = env.step(actions) # obs is n_envs x 1
+        
+        actions = [agent.step(obs[i][0]) for i, agent in enumerate(agents)]
+        print('>> storm >> just took step {}. Took: {}'.format(i, ss.delta))
+
+def mutate(agent, g):
+    old_params = agent.get_flat_weights()
+    new_params = []
+    for param in old_params:
+        new_params.append(param + sigma*np.random.randn(*param.shape))
+    new_agent = Scud(agent.name + "gen" + str(g))
+    new_agent.set_flat_weights(new_params)
+    return agent
+
+def rollout(env, agent):
+    return 1
+
 
 class Storm(object):
 

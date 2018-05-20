@@ -69,12 +69,11 @@ class Env():
             self.reset()
         x, y, build = action
 
-        write_prep_action(x, y, build, path=self.run_path, debug=False)
+        write_prep_action(x, y, build, path=self.run_path, debug=self.debug)
 
         with open(self.in_file, 'w') as f:
             # we want start of a new step
             f.write('0')
-        # print("Just wrote outfile as 1")
         obs = None
         stopw = Stopwatch()
         while True:
@@ -90,7 +89,7 @@ class Env():
                     obs = self.load_state()
                     break
             
-            if stopw.deltaT() > 5:
+            if stopw.deltaT() > 10:
                 # we have waited more than 3s, game clearly ended
                 self.needs_reset = True
                 if self.debug:
@@ -116,7 +115,9 @@ class Env():
         command = 'java -jar ' + os.path.join(self.run_path, jar_name)
         if self.debug:
             print("Opened process: ", str(command))
-        self.proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, cwd=self.run_path)
+            self.proc = subprocess.Popen(command, cwd=self.run_path)
+        else:
+            self.proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, cwd=self.run_path)
         
         self.pid = self.proc.pid
         return True
@@ -139,4 +140,7 @@ class Env():
         log_path = os.path.join(self.run_path, 'matchlogs')
         if self.debug:
             print("Removing folder: ", log_path)
-        shutil.rmtree(log_path)
+        try:
+            shutil.rmtree(log_path)
+        except FileNotFoundError:
+            pass
