@@ -26,7 +26,7 @@ Internal agent config
 n_base_actions = 4 # number of base actions -- 0=NO OP, 1=DEFENSE, 2=OFFENSE, 3=ENERGY...
 debug_verbose = False
 endpoints = {}
-device = 'gpu'
+device = 'cpu'
 tf.enable_eager_execution()
 # let an example map size be 20x40, so each player's building area is 20x20
     
@@ -36,7 +36,9 @@ class Scud(object):
         '''
         Build agent graph.
         '''
+        self.name = name
         self.debug = debug
+        self.fitness_score = 0
         if self.debug:
             log("Running conv2d on " + device)
         with tf.device('/' + device + ':0'):

@@ -18,8 +18,11 @@ summary = tf.contrib.summary
 ##############################
 ###### TRAINING CONFIG #######
 n_steps = 50
-n_generations = 2
-n_elite = 2
+n_generations = 5
+trunc_size = 2
+
+max_steps_per_eval = 10
+gamma = 0.99 # reward decay
 
 sigma = 0.002
 ##############################
@@ -27,40 +30,75 @@ sigma = 0.002
 def train(env, n_envs, no_op_vec):
     print(str('='*50) + '\n' + 'Initializing agents\n' + str('='*50) )
     
-    actions = no_op_vec
+    #actions = no_op_vec
     ## TODO: change agent layers to use xavier initializer
     agents = [Scud(name=str(i), debug=False) for i in range(n_envs)]
-    n_params = agents[0].model.count_params()
+    #n_params = agents[0].model.count_params()
+    elite = agents[0]
 
     print(str('='*50) + '\n' + 'Beginning training\n' + str('='*50) )
-    scores = []
+
     for g in range(n_generations):
         print(str('='*50) + '\n' + 'Generation ' + str(g) + '\n' + str('='*50) )
-        for i in range(n_envs):
 
-            parent_ind = np.random.randint(n_elite)
-            offspring = mutate(agents[parent_ind], g)
+        agents = collective_rollout(env, agents)
 
-            scores.append(rollout(env, offspring))
+        agents = sorted(agents, key = lambda agent : agent.fitness_score, reverse=True)
+        elite = agents[0]
+        for a in agents:
+            print(a.fitness_score)
 
-        ss = Stopwatch()
-        print(">> storm >> taking actions: ", actions)
-        obs = env.step(actions) # obs is n_envs x 1
-        
-        actions = [agent.step(obs[i][0]) for i, agent in enumerate(agents)]
-        print('>> storm >> just took step {}. Took: {}'.format(i, ss.delta))
+        #del agents[trunc_size:]
+        ind = trunc_size
 
-def mutate(agent, g):
-    old_params = agent.get_flat_weights()
+        while ind < n_envs:
+            parent_ind = np.random.randint(trunc_size)
+            mutate(agents[parent_ind], agents[ind], g)
+
+            ind += 1
+        # for i in range(n_envs):
+        #     print("mutating agent ", i)
+        #     parent_ind = np.random.randint(n_elite)
+        #     offspring = mutate(agents[parent_ind], g)
+
+        #obs = env.step(actions) # obs is n_envs x 1
+       
+
+def mutate(parent, child, g):
+    old_params = parent.get_flat_weights()
     new_params = []
+    print(">> storm >> mutating agent: ", parent.name)
     for param in old_params:
         new_params.append(param + sigma*np.random.randn(*param.shape))
-    new_agent = Scud(agent.name + "gen" + str(g))
-    new_agent.set_flat_weights(new_params)
-    return agent
+    child.name = parent.name + "gen" + str(g)
+    child.set_flat_weights(new_params)
+    child.fitness_score = 0
 
-def rollout(env, agent):
-    return 1
+def collective_rollout(env, agents):
+    step = 0
+    actions = [(0, 0, 3,) for _ in range(len(agents))]
+    suc = env.reset()
+    if all(suc) == False:
+        print("something fucked out. Could not reset all envs.")
+        return
+    obs = env.get_base_obs()
+    for a in agents:
+        a.fitness_score = 0
+
+    while step < max_steps_per_eval:
+        ss = Stopwatch()
+        
+        actions = [agent.step(obs[i]) for i, agent in enumerate(agents)]
+        print(">> storm >> taking actions: ", actions)
+        obs, rews = env.step(actions)
+        
+        for i, a in enumerate(agents):
+            a.fitness_score = rews[i] + gamma*a.fitness_score
+
+        print('>> storm >> just took step {}. Took: {}'.format(step, ss.delta))
+        step = step + 1
+
+    return agents
 
 
 class Storm(object):

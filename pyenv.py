@@ -75,6 +75,7 @@ class Env():
             # we want start of a new step
             f.write('0')
         obs = None
+        reward = None
         stopw = Stopwatch()
         while True:
             with open(self.in_file, 'r') as ff:
@@ -98,8 +99,12 @@ class Env():
 
             time.sleep(0.01)
         # TODO: possibly pre-parse obs here and derive a reward from it?
-
-        return obs
+        
+        if obs is not None:
+            # Infer reward:
+            #reward = float(obs['players'][0]['score']) - float(obs['players'][1]['score'])
+            reward = float(obs['players'][0]['score'])
+        return obs, reward
 
     def load_state(self):
         '''

@@ -15,7 +15,7 @@ import storm
 import time
 
 # Config vars
-n_envs = 3
+n_envs = 4
 console_debug = False
 train = True
 
@@ -46,9 +46,10 @@ def main():
         for i in range(4):
             ss = Stopwatch()
             print(">> manager >> taking actions: ", actions)
-            obs = env.step(actions) # obs is n_envs x 1
+            obs, rews = env.step(actions) # obs is n_envs x 1
+            print(rews)
             try:
-                actions = [agent.step(obs[i][0]) for i, agent in enumerate(agents)]
+                actions = [agent.step(obs[i]) for i, agent in enumerate(agents)]
             except TypeError as e:
                 print("Got ", e)
                 break

@@ -8,13 +8,17 @@ def worker(remote, parent_remote, env_fn_wrapper):
 	while True:
 		cmd, data = remote.recv()
 		if cmd == 'step':
-			ob = env.step(data)
+			ob, rew = env.step(data)
 			
-			remote.send((ob,))
+			remote.send((ob, rew))
 		elif cmd == 'reset':
 			sucess = env.reset()
 
 			remote.send((sucess,))
+		elif cmd == 'getobs':
+			ob = env.load_state()
+			remote.send(ob)
+
 		elif cmd == 'close':
 			success = env.close()
 			env.cleanup()
@@ -59,7 +63,6 @@ class SubprocEnvManager(object):
 		for remote in self.work_remotes:
 			remote.close()
 
-		self.reset()
 		# The action space is non-stationary, so these lines don't really make sense. 
 		#self.remotes[0].send(('get_spaces', None))
 		#self.action_space, self.observation_space = self.remotes[0].recv()
@@ -71,8 +74,8 @@ class SubprocEnvManager(object):
 			remote.send(('step', action))
 		results = [remote.recv() for remote in self.remotes]
 		#obs, rews, dones, infos = zip(*results)
-		obs = zip(*results)
-		return np.stack(obs, axis=-1)
+		obs, rews = zip(*results)
+		return np.stack(obs, axis=-1), np.stack(rews, axis=-1)
 
 	def reset(self):
 		for remote in self.remotes:
@@ -92,6 +95,13 @@ class SubprocEnvManager(object):
 	# 		remote.send(('action_spec', None))
 	# 	results = [remote.recv() for remote in self.remotes]
 	# 	return results
+
+	def get_base_obs(self):
+		for remote in self.remotes:
+			remote.send(('getobs', None))
+		
+		obs = np.stack([remote.recv() for remote in self.remotes], axis=-1)
+		return obs
 
 	def close(self):
 		print("subproc_env_manager: attempting to close")
