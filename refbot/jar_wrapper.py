@@ -46,7 +46,7 @@ def main():
         fileLog(f.read())
 
     copy2(command_name, proper_name)
-    os.remove(command_name)
+    #os.remove(command_name)
     #os.rename(command_name, proper_name)
     
     fileLog("Found it!! Exiting to next round!")

@@ -15,9 +15,9 @@ import storm
 import time
 
 # Config vars
-n_envs = 4
-console_debug = False
-train = True
+n_envs = 3
+console_debug = True
+train = False
 
 def main():
     sTime = Stopwatch()
@@ -32,7 +32,12 @@ def main():
         return env_fn
     print('>> manager >> creating envs')
     s = Stopwatch()
-    env = SubprocEnvManager([make_env(s) for s in env_names])
+    try:
+        env = SubprocEnvManager([make_env(s) for s in env_names])
+    except EOFError as e:
+        print("caught an EOFError ", e, '\nClosing the env now')
+        env.close()
+        return
     print('>> manager >> created envs. Took ', s.delta)
     no_act_vec = [(0, 0, 3,) for _ in range(n_envs)]
 
@@ -43,15 +48,19 @@ def main():
     else:
         actions = no_act_vec
         agents = [Scud(name=str(i), debug=False) for i in range(n_envs)]
+        refbot = Scud('ref', False)
+        ref_act = None
         for i in range(4):
             ss = Stopwatch()
             print(">> manager >> taking actions: ", actions)
-            obs, rews = env.step(actions) # obs is n_envs x 1
-            print(rews)
+            obs, rews = env.step(actions, ref_act) # obs is n_envs x 1
+            #print(rews)
+            #print("obs shape", obs.shape)
             try:
-                actions = [agent.step(obs[i]) for i, agent in enumerate(agents)]
+                actions = [agent.step(obs[i][0]) for i, agent in enumerate(agents)]
+                ref_act = [refbot.step(obs[i][1]) for i in range(len(agents))]
             except TypeError as e:
-                print("Got ", e)
+                print("TypeError!!! ", e)
                 break
             print('>> manager >> just took step {}. Took: {}'.format(i, ss.delta))
     # gets all the variables of the model

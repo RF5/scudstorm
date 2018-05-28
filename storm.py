@@ -5,7 +5,7 @@ Entelect Challenge 2018
 Author: Matthew Baas
 '''
 import tensorflow as tf
-import common.util
+from common import util
 import os
 import argparse
 import time
@@ -18,51 +18,79 @@ summary = tf.contrib.summary
 ##############################
 ###### TRAINING CONFIG #######
 n_steps = 50
-n_generations = 5
-trunc_size = 2
+n_generations = 10
+trunc_size = 3
+replace_refbot_every = 5
 
-max_steps_per_eval = 10
+max_steps_per_eval = 30
 gamma = 0.99 # reward decay
 
-sigma = 0.002
+sigma = 0.002 # guassian std scaling
+
 ##############################
 
 def train(env, n_envs, no_op_vec):
     print(str('='*50) + '\n' + 'Initializing agents\n' + str('='*50) )
-    
+
+    # Setting up logs
+    writer = summary.create_file_writer(util.get_logdir('test2'), flush_millis=10000)
+    writer.set_as_default()
+    global_step = tf.train.get_or_create_global_step()
+
     #actions = no_op_vec
     ## TODO: change agent layers to use xavier initializer
     agents = [Scud(name=str(i), debug=False) for i in range(n_envs)]
+
+    refbot = Scud(name='refbot', debug=False)
+
     #n_params = agents[0].model.count_params()
     elite = agents[0]
 
     print(str('='*50) + '\n' + 'Beginning training\n' + str('='*50) )
-
+    s = Stopwatch()
     for g in range(n_generations):
-        print(str('='*50) + '\n' + 'Generation ' + str(g) + '\n' + str('='*50) )
-
-        agents = collective_rollout(env, agents)
+        global_step.assign_add(1)
+        
+        print(str('='*50) + '\n' + 'Generation ' + str(g) + '. Took  ' + s.delta +  '\n' + str('='*50) )
+        s.reset()
+        agents = collective_rollout(env, agents, refbot)
 
         agents = sorted(agents, key = lambda agent : agent.fitness_score, reverse=True)
+
         elite = agents[0]
+
+        with summary.always_record_summaries(): 
+            sc_vec = [a.fitness_score for a in agents]
+            summary.scalar('rewards/mean', np.mean(sc_vec))
+            summary.scalar('rewards/max', elite.fitness_score)
+            summary.scalar('rewards/min', agents[-1].fitness_score)
+            summary.scalar('rewards/var', np.var(sc_vec))
+            summary.scalar('rewards/truc_mean', np.mean(sc_vec[:trunc_size]))
+        
         for a in agents:
             print(a.fitness_score)
 
         #del agents[trunc_size:]
         ind = trunc_size
 
+        if g % replace_refbot_every == 0:
+            good_params = agents[trunc_size-1].get_flat_weights()
+            refbot.set_flat_weights(good_params)
+
         while ind < n_envs:
             parent_ind = np.random.randint(trunc_size)
             mutate(agents[parent_ind], agents[ind], g)
 
             ind += 1
+
         # for i in range(n_envs):
         #     print("mutating agent ", i)
         #     parent_ind = np.random.randint(n_elite)
         #     offspring = mutate(agents[parent_ind], g)
 
         #obs = env.step(actions) # obs is n_envs x 1
-       
+        
+    summary.flush()
 
 def mutate(parent, child, g):
     old_params = parent.get_flat_weights()
@@ -72,9 +100,8 @@ def mutate(parent, child, g):
         new_params.append(param + sigma*np.random.randn(*param.shape))
     child.name = parent.name + "gen" + str(g)
     child.set_flat_weights(new_params)
-    child.fitness_score = 0
 
-def collective_rollout(env, agents):
+def collective_rollout(env, agents, refbot, debug=False):
     step = 0
     actions = [(0, 0, 3,) for _ in range(len(agents))]
     suc = env.reset()
@@ -89,13 +116,16 @@ def collective_rollout(env, agents):
         ss = Stopwatch()
         
         actions = [agent.step(obs[i]) for i, agent in enumerate(agents)]
-        print(">> storm >> taking actions: ", actions)
+        ref_actions = [refbot.step(obs[i]) for i in range(len(obs))]
+        if debug:
+            print(">> storm >> taking actions: ", actions)
         obs, rews = env.step(actions)
         
         for i, a in enumerate(agents):
             a.fitness_score = rews[i] + gamma*a.fitness_score
 
-        print('>> storm >> just took step {}. Took: {}'.format(step, ss.delta))
+        if debug:
+            print('>> storm >> just took step {}. Took: {}'.format(step, ss.delta))
         step = step + 1
 
     return agents

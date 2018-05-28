@@ -2,5 +2,5 @@
   "round-state-output-location": "./matchlogs",
   "max-runtime-ms": 40000,
   "player-a": "./",
-  "player-b": "./python3"
+  "player-b": "./refbot"
 }

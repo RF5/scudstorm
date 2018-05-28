@@ -8,7 +8,8 @@ def worker(remote, parent_remote, env_fn_wrapper):
 	while True:
 		cmd, data = remote.recv()
 		if cmd == 'step':
-			ob, rew = env.step(data)
+			action, p2_act = data
+			ob, rew = env.step(action, p2_act)
 			
 			remote.send((ob, rew))
 		elif cmd == 'reset':
@@ -67,15 +68,21 @@ class SubprocEnvManager(object):
 		#self.remotes[0].send(('get_spaces', None))
 		#self.action_space, self.observation_space = self.remotes[0].recv()
 
-	def step(self, actions):
+	def step(self, actions, p2_actions=None):
 		#print("==========\nENTERING STEP FUNCTION\n=============")
-		for remote, action in zip(self.remotes, actions): # so we feed in an array of actions for each agent
+		if p2_actions is None:
+			p2_actions = [(0, 0, 3) for _ in range(len(actions))]
+		for remote, action, p2_act in zip(self.remotes, actions, p2_actions): # so we feed in an array of actions for each agent
 
-			remote.send(('step', action))
+			remote.send(('step', (action, p2_act)))
 		results = [remote.recv() for remote in self.remotes]
 		#obs, rews, dones, infos = zip(*results)
 		obs, rews = zip(*results)
-		return np.stack(obs, axis=-1), np.stack(rews, axis=-1)
+		#print(len(obs))
+		#print(obs[0].shape)
+		#print('obs shape', len(obs[0]))
+		#print("ref_obs shape", len(ref_obs[]))
+		return np.stack(obs, axis=0), np.stack(rews, axis=0)
 
 	def reset(self):
 		for remote in self.remotes:
