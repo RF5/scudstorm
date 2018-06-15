@@ -12,6 +12,7 @@ import json
 import numpy as np
 from shutil import copy2
 import shutil
+import signal
 from common.util import write_prep_action
 from common.metrics import Stopwatch
 
@@ -36,9 +37,8 @@ class Env():
     def setup_directory(self):
         # creates the dirs responsible for this env, 
         # and moves a copy of the runner and config to that location
-
-
-        print("Setting up file directory for " + self.name)
+        
+        print("Setting up file directory for " + self.name + " with pid " + str(os.getpid()))
         basedir = os.path.dirname(os.path.abspath(__file__)) # now in scudstorm dir
         self.run_path = os.path.join(basedir, 'runs', self.name)
         if os.path.isdir(self.run_path):
@@ -81,11 +81,13 @@ class Env():
         if self.needs_reset:
             self.reset()
         x, y, build = action
-
+        
         write_prep_action(x, y, build, path=self.run_path, debug=self.debug)
 
         with open(self.in_file, 'w') as f:
             # we want start of a new step
+            if self.debug:
+                print(">> pyenv {} >> writing 2 to file {}".format(self.name, self.in_file))
             f.write('2')
         obs = None
         reward = None
@@ -107,12 +109,15 @@ class Env():
                 # we have waited more than 3s, game clearly ended
                 self.needs_reset = True
                 if self.debug:
-                    print('pyenv: env with pid ' + str(self.pid) + ' needs reset.')
+                    print('pyenv: env ' + str(self.name) + ' with pid ' + str(self.pid) + ' needs reset.')
                 break
 
             time.sleep(0.01)
         # TODO: possibly pre-parse obs here and derive a reward from it?
         
+        if obs is None and self.debug == True:
+            print(">> PY_ENV >> MAIN OBS IS NONE")
+
         if obs is not None:
             # Infer reward:
             #reward = float(obs['players'][0]['score']) - float(obs['players'][1]['score'])
@@ -121,36 +126,37 @@ class Env():
             self.score = curS
 
         ref_obs, _ = self.refenv.step(ref_act)
+
         k = np.asarray([obs,])
         u = np.asarray([ref_obs,])
         return_obs = np.concatenate([k, u], axis=-1)
-        return return_obs, reward
+        return return_obs, np.concatenate([np.asarray([reward,]), np.asarray([0.0,])], axis=-1)
 
     def load_state(self):
         '''
         Gets the current Game State json file.
         '''
+        while os.path.isfile(self.state_file) == False:
+            if self.debug:
+                print(">> PYENV >> waiting for state file  ", self.state_file, ' to appear')
+            time.sleep(0.01)
+
         return json.load(open(self.state_file,'r'))
 
     def reset(self):
         if self.proc is not None:
             self.proc.kill()
         self.needs_reset = False
-        with open(self.in_file, 'w') as f:
-            # we want start of a new step
-            f.write('2')
 
-        with open(os.path.join(self.refbot_path, wrapper_out_filename), 'w') as f:
-            # we want start of a new step
-            f.write('2')
         command = 'java -jar ' + os.path.join(self.run_path, jar_name)
         if self.debug:
-            print("Opened process: ", str(command))
             self.proc = subprocess.Popen(command, cwd=self.run_path)
+            print("Opened process: ", str(command), " with pid ", self.proc.pid)
         else:
             self.proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, cwd=self.run_path)
         
         self.pid = self.proc.pid
+        time.sleep(0.1)
         return True
 
     def close(self):
@@ -163,17 +169,38 @@ class Env():
             self.proc.kill()
         else:
             return None
-        # print(h)
+
+        time.sleep(0.3)
+        pid_file = os.path.join(self.run_path, 'wrapper_pid.txt')
+        with open(pid_file, 'r') as f:
+            wrapper_pid = int(f.read())
+            if wrapper_pid == 0:
+                return None
+            else:
+                try:
+                    os.kill(wrapper_pid, signal.SIGTERM)
+                except PermissionError as e:
+                    print(">> PYENV >> Attempted to close wrapper pid ", wrapper_pid, " but got ERROR ", e)
+        time.sleep(0.1)
+        # pid_file2 = os.path.join(self.refenv.ref_path, 'wrapper_pid.txt')
+        # with open(pid_file2, 'r') as f:
+        #     wrapper_pid2 = int(f.read())
+        #     if wrapper_pid2 == 0:
+        #         return None
+        #     else:
+        #         os.kill(wrapper_pid2, signal.SIGTERM)
+
         self.pid = None
         return True
         
     def cleanup(self):
-        log_path = os.path.join(self.run_path, 'matchlogs')
+        log_path = os.path.join(self.run_path, 'matches')
+
         if self.debug:
             print("Removing folder: ", log_path)
         try:
             shutil.rmtree(log_path)
-        except FileNotFoundError:
+        except Exception:
             pass
 
 class RefEnv():
@@ -192,6 +219,8 @@ class RefEnv():
 
         with open(self.in_file, 'w') as f:
             # we want start of a new step
+            if self.debug:
+                print(">> pyenv {} >> writing 2 to file {}".format(self.name, self.in_file))
             f.write('2')
         obs = None
         #reward = None
@@ -225,6 +254,9 @@ class RefEnv():
         #     curS = float(obs['players'][0]['score'])
         #     reward = curS - self.score
         #     self.score = curS
+        if obs is None:
+            print(">> PY_ENV >> REF OBS IS NONE")
+
         return obs, 0
 
     def load_state(self):

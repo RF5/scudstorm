@@ -37,7 +37,7 @@ def write_prep_action(x,y,building, path, debug=True):
 	outfl = open(os.path.join(path, 'command2.txt'),'w')
 
 	if action_names[building] == 'no_op':
-		outfl.write("")
+		outfl.write("NO_OP")
 	else:
 		outfl.write(','.join([str(x),str(y),str(building)]))
 	outfl.close()

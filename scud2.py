@@ -58,7 +58,8 @@ class Scud(object):
             self.game_state = inputs
         except IOError:
             print("Cannot load Game State")
-            
+
+        print(type(inputs))            
         self.full_map = self.game_state['gameMap']
         self.rows = self.game_state['gameDetails']['mapHeight']
         self.columns = self.game_state['gameDetails']['mapWidth']

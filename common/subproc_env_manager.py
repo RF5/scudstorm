@@ -78,6 +78,8 @@ class SubprocEnvManager(object):
 		results = [remote.recv() for remote in self.remotes]
 		#obs, rews, dones, infos = zip(*results)
 		obs, rews = zip(*results)
+		# for ss in results[0]:
+		# 	print("SUBPROC ENV: ", ss, 'with length: ' + str(len(ss)))
 		#print(len(obs))
 		#print(obs[0].shape)
 		#print('obs shape', len(obs[0]))

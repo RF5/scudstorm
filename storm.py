@@ -17,10 +17,10 @@ summary = tf.contrib.summary
 
 ##############################
 ###### TRAINING CONFIG #######
-n_steps = 50
-n_generations = 10
+n_steps = 20
+n_generations = 5
 trunc_size = 3
-replace_refbot_every = 5
+replace_refbot_every = 10
 
 max_steps_per_eval = 30
 gamma = 0.99 # reward decay

@@ -6,6 +6,8 @@ Author: Matthew Baas
 '''
 
 import os
+import sys
+import traceback
 import multiprocessing
 from common.subproc_env_manager import SubprocEnvManager
 from pyenv import Env
@@ -15,9 +17,9 @@ import storm
 import time
 
 # Config vars
-n_envs = 3
-console_debug = True
-train = False
+n_envs = 5
+console_debug = False
+train = True
 
 def main():
     sTime = Stopwatch()
@@ -44,15 +46,25 @@ def main():
     # TODO:
     # obs = np.zeros() # some initial state
     if train:
-        storm.train(env, n_envs, no_act_vec)
+        try:
+            storm.train(env, n_envs, no_act_vec)
+        except Exception as err:
+            try:
+                exc_info = sys.exc_info()
+
+            finally:
+                traceback.print_exception(*exc_info)
+                del exc_info
     else:
         actions = no_act_vec
         agents = [Scud(name=str(i), debug=False) for i in range(n_envs)]
         refbot = Scud('ref', False)
+        env.reset()
+        ob = env.get_base_obs()
         ref_act = None
-        for i in range(4):
+        for i in range(5):
             ss = Stopwatch()
-            print(">> manager >> taking actions: ", actions)
+            print(">> manager >> step {}, taking actions: {}".format(i, actions))
             obs, rews = env.step(actions, ref_act) # obs is n_envs x 1
             #print(rews)
             #print("obs shape", obs.shape)
@@ -63,9 +75,10 @@ def main():
                 print("TypeError!!! ", e)
                 break
             print('>> manager >> just took step {}. Took: {}'.format(i, ss.delta))
+            time.sleep(0.03)
     # gets all the variables of the model
     # all_variables = agents[0].model.get_weights()
-
+    
     print('>> manager >> closing env. Total runtime: ', sTime.delta)
     env.close()
 
