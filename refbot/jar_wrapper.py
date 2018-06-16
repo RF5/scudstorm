@@ -37,7 +37,7 @@ def main():
         meme = False
         while meme == False:
             while os.path.isfile(wrapper_path) == False:
-                time.sleep(0.02)
+                time.sleep(0.01)
 
             with open(wrapper_path, 'r') as f:
                 k = f.read()
@@ -64,7 +64,7 @@ def main():
                 if meme is not None and meme != "":
                     flag = True
                     break
-                time.sleep(0.1)
+                time.sleep(0.03)
                     
         if meme == "NO_OP":
             with open(command_name, 'w') as f:

@@ -108,8 +108,8 @@ class Env():
             if stopw.deltaT() > 10:
                 # we have waited more than 3s, game clearly ended
                 self.needs_reset = True
-                if self.debug:
-                    print('pyenv: env ' + str(self.name) + ' with pid ' + str(self.pid) + ' needs reset.')
+                #if self.debug:
+                print('pyenv: env ' + str(self.name) + ' with pid ' + str(self.pid) + ' needs reset.')
                 break
 
             time.sleep(0.01)
@@ -140,13 +140,43 @@ class Env():
             if self.debug:
                 print(">> PYENV >> waiting for state file  ", self.state_file, ' to appear')
             time.sleep(0.01)
+        try:
+            k = json.load(open(self.state_file,'r'))
+        except json.decoder.JSONDecodeError as e:
+            k = None
+            print("Failed to decode json state! Got error ", e)
 
-        return json.load(open(self.state_file,'r'))
+        return k
+
+    def get_obs(self):
+        this_obs = self.load_state()
+        refbot_obs = self.refenv.load_state()
+        x = np.asarray([this_obs,])
+        y = np.asarray([refbot_obs,])
+
+        return np.concatenate([x, y], axis=-1)
 
     def reset(self):
         if self.proc is not None:
             self.proc.kill()
         self.needs_reset = False
+
+        pid_file = os.path.join(self.run_path, 'wrapper_pid.txt')
+        if os.path.isfile(pid_file):
+            with open(pid_file, 'r') as f:
+                wrapper_pid = int(f.read())
+                if wrapper_pid == 0:
+                    return None
+                else:
+                    try:
+                        os.kill(wrapper_pid, signal.SIGTERM)
+                    except PermissionError as e:
+                        if self.debug:
+                            print(">> PYENV ", self.name, " >> Attempted to close wrapper pid ", wrapper_pid, " but got ERROR ", e)
+        else:
+            if self.debug:
+                print(">> PYENV >> Attempted to close wrapper pid but the wrapper pid file was not found ")
+        time.sleep(0.1)
 
         command = 'java -jar ' + os.path.join(self.run_path, jar_name)
         if self.debug:
@@ -156,7 +186,8 @@ class Env():
             self.proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, cwd=self.run_path)
         
         self.pid = self.proc.pid
-        time.sleep(0.1)
+        time.sleep(0.2)
+
         return True
 
     def close(self):
@@ -170,17 +201,20 @@ class Env():
         else:
             return None
 
-        time.sleep(0.3)
+        time.sleep(0.1)
         pid_file = os.path.join(self.run_path, 'wrapper_pid.txt')
-        with open(pid_file, 'r') as f:
-            wrapper_pid = int(f.read())
-            if wrapper_pid == 0:
-                return None
-            else:
-                try:
-                    os.kill(wrapper_pid, signal.SIGTERM)
-                except PermissionError as e:
-                    print(">> PYENV >> Attempted to close wrapper pid ", wrapper_pid, " but got ERROR ", e)
+        if os.path.isfile(pid_file):
+            with open(pid_file, 'r') as f:
+                wrapper_pid = int(f.read())
+                if wrapper_pid == 0:
+                    return None
+                else:
+                    try:
+                        os.kill(wrapper_pid, signal.SIGTERM)
+                    except PermissionError as e:
+                        print(">> PYENV >> Attempted to close wrapper pid ", wrapper_pid, " but got ERROR ", e)
+        else:
+            print(">> PYENV >> Attempted to close wrapper pid but the wrapper pid file was not found ")
         time.sleep(0.1)
         # pid_file2 = os.path.join(self.refenv.ref_path, 'wrapper_pid.txt')
         # with open(pid_file2, 'r') as f:
@@ -194,7 +228,7 @@ class Env():
         return True
         
     def cleanup(self):
-        log_path = os.path.join(self.run_path, 'matches')
+        log_path = os.path.join(self.run_path, 'matchlogs')
 
         if self.debug:
             print("Removing folder: ", log_path)
@@ -241,8 +275,8 @@ class RefEnv():
             if stopw.deltaT() > 10:
                 # we have waited more than 3s, game clearly ended
                 self.needs_reset = True
-                if self.debug:
-                    print('pyenv: something very bad happened in refbot ', self.name, '. Took more than 10s to respond...')
+                #if self.debug:
+                print('pyenv: something very bad happened in refbot ', self.name, '. Took more than 10s to respond...')
                 break
 
             time.sleep(0.01)
@@ -263,4 +297,15 @@ class RefEnv():
         '''
         Gets the current Game State json file.
         '''
-        return json.load(open(self.state_file,'r'))
+        while os.path.isfile(self.state_file) == False:
+            if self.debug:
+                print(">> PYENV REFBOT >> waiting for state file  ", self.state_file, ' to appear')
+            time.sleep(0.01)
+
+        try:
+            k = json.load(open(self.state_file,'r'))
+        except json.decoder.JSONDecodeError as e:
+            k = None
+            print("Failed to decode json state! Got error ", e)
+
+        return k

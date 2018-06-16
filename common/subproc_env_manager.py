@@ -2,6 +2,8 @@ import numpy as np
 from multiprocessing import Process, Pipe
 import time
 
+verbose = False
+
 def worker(remote, parent_remote, env_fn_wrapper):
 	parent_remote.close()
 	env = env_fn_wrapper.x()
@@ -17,7 +19,7 @@ def worker(remote, parent_remote, env_fn_wrapper):
 
 			remote.send((sucess,))
 		elif cmd == 'getobs':
-			ob = env.load_state()
+			ob = env.get_obs()
 			remote.send(ob)
 
 		elif cmd == 'close':
@@ -25,9 +27,6 @@ def worker(remote, parent_remote, env_fn_wrapper):
 			env.cleanup()
 			remote.close()
 			break
-		# elif cmd == 'get_spaces':
-		# 	# Returns the action space and observation space
-		# 	remote.send((env.action_spec(), env.observation_spec()))
 		# elif cmd == 'action_spec':
 		# 	remote.send(env.action_spec())
 		else:
@@ -91,13 +90,9 @@ class SubprocEnvManager(object):
 			remote.send(('reset', None))
 		
 		k = np.stack([remote.recv() for remote in self.remotes])
-		print("============\nCLEARED RESET\n============")
+		if verbose:
+			print("============\nCLEARED RESET\n============")
 		return k
-
-	# def reset_task(self):
-	# 	for remote in self.remotes:
-	# 		remote.send(('reset_task', None))
-	# 	return np.stack([remote.recv() for remote in self.remotes])
 
 	# def action_spec(self):
 	# 	for remote in self.remotes:
@@ -109,7 +104,7 @@ class SubprocEnvManager(object):
 		for remote in self.remotes:
 			remote.send(('getobs', None))
 		
-		obs = np.stack([remote.recv() for remote in self.remotes], axis=-1)
+		obs = np.stack([remote.recv() for remote in self.remotes], axis=0)
 		return obs
 
 	def close(self):

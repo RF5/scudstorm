@@ -39,6 +39,7 @@ class Scud(object):
         self.name = name
         self.debug = debug
         self.fitness_score = 0
+        self.fitness_averaging_list = []
         if self.debug:
             log("Running conv2d on " + device)
         with tf.device('/' + device + ':0'):
@@ -58,8 +59,7 @@ class Scud(object):
             self.game_state = inputs
         except IOError:
             print("Cannot load Game State")
-
-        print(type(inputs))            
+          
         self.full_map = self.game_state['gameMap']
         self.rows = self.game_state['gameDetails']['mapHeight']
         self.columns = self.game_state['gameDetails']['mapWidth']
@@ -349,6 +349,10 @@ class Scud(object):
             log("Finished adding base. Took: " + s.delta)
 
         return net
+
+    def squash_fitness_scores(self):
+        self.fitness_score = np.mean(self.fitness_averaging_list)
+        self.fitness_averaging_list.clear()
 
 if __name__ == '__main__':
 

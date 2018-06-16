@@ -45,7 +45,7 @@ def main():
                 if k == "2":
                     flag = True
                     break
-                time.sleep(0.03)
+                time.sleep(0.06)
                 
 
         fileLog("our inner dir = " + str(this_dir))
@@ -56,7 +56,7 @@ def main():
         flag = False
         while flag == False:
             while os.path.isfile(command_name) == False:
-                time.sleep(0.01)
+                time.sleep(0.02)
 
             with open(command_name, 'r') as f:
                 meme = f.read()
@@ -64,7 +64,7 @@ def main():
                 if meme is not None and meme != "":
                     flag = True
                     break
-                time.sleep(0.1)
+                time.sleep(0.08)
                     
         if meme == "NO_OP":
             with open(command_name, 'w') as f:

@@ -17,7 +17,7 @@ import storm
 import time
 
 # Config vars
-n_envs = 5
+n_envs = 6
 console_debug = False
 train = True
 
