@@ -6,7 +6,7 @@ Author: Matthew Baas
 '''
 import os
 import numpy as np
-import tensorflow as tf
+import sys
 from common.metrics import log
 import json
 
@@ -75,3 +75,7 @@ def get_initial_obs(n_envs):
 		intermediate = np.concatenate([x, y], axis=-1)
 		lys.append(intermediate)
 	return np.stack(lys, axis=0)
+
+class ControlObject(object):
+	def __init__(self, code):
+		self.code = code

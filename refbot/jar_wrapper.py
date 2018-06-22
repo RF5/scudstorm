@@ -11,7 +11,7 @@ import sys
 from shutil import copy2
 import traceback
 
-debug = True
+debug = False
 
 def fileLog(msg):
     if debug:

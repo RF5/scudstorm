@@ -13,7 +13,7 @@ import numpy as np
 from shutil import copy2
 import shutil
 import signal
-from common.util import write_prep_action
+from common.util import write_prep_action, ControlObject
 from common.metrics import Stopwatch
 
 # Config variables
@@ -22,6 +22,7 @@ config_name = 'config.json'
 wrapper_out_filename = 'wrapper_out.txt'
 state_name = 'state.json'
 bot_file_name = 'bot.json'
+per_step_reward_penalty = -8
 
 class Env():
 
@@ -30,6 +31,7 @@ class Env():
         self.debug = debug
         self.setup_directory()
         self.score = 0
+        self.score_delta = 0
         # setting up jar runner
         self.needs_reset = True
         self.pid = None
@@ -80,8 +82,16 @@ class Env():
     def step(self, action, ref_act):
         if self.needs_reset:
             self.reset()
+
+        if self.proc.poll() != None:
+            # env ended last step, so reset:
+            if self.debug:
+                print(">> PYENV ", self.name ," >>  Ended early")
+            cntrl_obj = ControlObject('EARLY')
+            tp = np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
+            return tp, np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
+            
         x, y, build = action
-        
         write_prep_action(x, y, build, path=self.run_path, debug=self.debug)
 
         with open(self.in_file, 'w') as f:
@@ -125,7 +135,8 @@ class Env():
             # Infer reward:
             #reward = float(obs['players'][0]['score']) - float(obs['players'][1]['score'])
             curS = float(obs['players'][0]['score'])
-            reward = curS - self.score
+            self.score_delta = curS - self.score
+            reward = self.score_delta + per_step_reward_penalty
             self.score = curS
 
         
@@ -161,27 +172,51 @@ class Env():
         return np.concatenate([x, y], axis=-1)
 
     def reset(self):
+        if self.debug:
+            with open(os.path.join(self.run_path, 'mylog.txt'), 'a') as f:
+                f.write("RESETTING!!!")
+
+            with open(os.path.join(self.refbot_path, 'mylog.txt'), 'a') as f:
+                f.write("RESETTING!!!")
+
         if self.proc is not None:
             self.proc.kill()
         self.needs_reset = False
-        
+        time.sleep(0.07)
         # trying to kill jar wrapper of this env
         pid_file = os.path.join(self.run_path, 'wrapper_pid.txt')
         if os.path.isfile(pid_file):
-            with open(pid_file, 'r') as f:
-                wrapper_pid = int(f.read())
-                if wrapper_pid == 0:
-                    return None
-                else:
+            flag = False
+            while flag == False:
+                with open(pid_file, 'r') as f:
                     try:
-                        os.kill(wrapper_pid, signal.SIGTERM)
-                    except PermissionError as e:
-                        if self.debug:
-                            print(">> PYENV ", self.name, " >> Attempted to close wrapper pid ", wrapper_pid, " but got ERROR ", e)
+                        wrapper_pid = int(f.read())
+                    except ValueError:
+                        continue
+                    if wrapper_pid == 0:
+                        flag = True
+                        return None
+                    else:
+                        flag = True
+                        try:
+                            os.kill(wrapper_pid, signal.SIGTERM)
+                        except PermissionError as e:
+                            if self.debug:
+                                print(">> PYENV ", self.name, " >> Attempted to close wrapper pid ", wrapper_pid, " but got ERROR ", e)
+                        break
         else:
             if self.debug:
                 print(">> PYENV >> Attempted to close wrapper pid but the wrapper pid file was not found ")
-        time.sleep(0.1)
+        time.sleep(0.07)
+
+
+        ## Trying to prevent reset bugs from propping up
+        # self.refbot_path = os.path.join(self.run_path, 'refbot')
+
+        # if os.path.isdir(self.refbot_path):
+        #     shutil.rmtree(self.refbot_path)
+        # refbotdir = os.path.join(basedir, 'refbot')
+        # shutil.copytree(refbotdir, self.refbot_path)
 
         # trying to kill jar wrapper of ref env
         # refpid_file = os.path.join(self.refbot_path, 'wrapper_pid.txt')
@@ -210,7 +245,6 @@ class Env():
             self.proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, cwd=self.run_path)
         
         self.pid = self.proc.pid
-        time.sleep(0.2)
 
         return True
 
@@ -228,15 +262,24 @@ class Env():
         time.sleep(0.1)
         pid_file = os.path.join(self.run_path, 'wrapper_pid.txt')
         if os.path.isfile(pid_file):
-            with open(pid_file, 'r') as f:
-                wrapper_pid = int(f.read())
-                if wrapper_pid == 0:
-                    return None
-                else:
+            flag = False
+            while flag == False:
+                with open(pid_file, 'r') as f:
                     try:
-                        os.kill(wrapper_pid, signal.SIGTERM)
-                    except PermissionError as e:
-                        print(">> PYENV >> Attempted to close wrapper pid ", wrapper_pid, " but got ERROR ", e)
+                        wrapper_pid = int(f.read())
+                    except ValueError:
+                        continue
+                    if wrapper_pid == 0:
+                        flag = True
+                        return None
+                    else:
+                        flag = True
+                        try:
+                            os.kill(wrapper_pid, signal.SIGTERM)
+                        except PermissionError as e:
+                            if self.debug:
+                                print(">> PYENV ", self.name, " >> Attempted to close wrapper pid ", wrapper_pid, " but got ERROR ", e)
+                        break
         else:
             print(">> PYENV >> Attempted to close wrapper pid but the wrapper pid file was not found ")
         time.sleep(0.1)

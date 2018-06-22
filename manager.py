@@ -17,7 +17,7 @@ import storm
 import time
 
 # Config vars
-n_envs = 2
+n_envs = 4
 console_debug = False
 train = True
 
@@ -55,6 +55,10 @@ def main():
             finally:
                 traceback.print_exception(*exc_info)
                 del exc_info
+        finally:
+            print('>> manager >> closing env. Total runtime: ', sTime.delta)
+            env.close()
+            sys.exit(0)
     else:
         actions = no_act_vec
         agents = [Scud(name=str(i), debug=False) for i in range(n_envs)]
@@ -81,6 +85,7 @@ def main():
     
     print('>> manager >> closing env. Total runtime: ', sTime.delta)
     env.close()
+    sys.exit(0)
 
 if __name__ == '__main__':
     main()

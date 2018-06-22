@@ -40,6 +40,7 @@ class Scud(object):
         self.debug = debug
         self.fitness_score = 0
         self.fitness_averaging_list = []
+        self.mask_output = False
         if self.debug:
             log("Running conv2d on " + device)
         with tf.device('/' + device + ':0'):
@@ -55,6 +56,11 @@ class Scud(object):
         return None
 
     def step(self, inputs):
+        if self.mask_output == True or type(inputs) == util.ControlObject:
+            if self.debug:
+                print("scud ", self.name, 'output masked')
+            return 0, 0, 3
+
         try:
             self.game_state = inputs
         except IOError:

@@ -11,7 +11,7 @@ import sys
 from shutil import copy2
 import traceback
 
-debug = True
+debug = False
 
 def fileLog(msg):
     if debug:
@@ -37,7 +37,7 @@ def main():
         meme = False
         while meme == False:
             while os.path.isfile(wrapper_path) == False:
-                time.sleep(0.02)
+                time.sleep(0.01)
 
             with open(wrapper_path, 'r') as f:
                 k = f.read()
@@ -45,12 +45,12 @@ def main():
                 if k == "2":
                     flag = True
                     break
-                time.sleep(0.06)
+                time.sleep(0.03)
 
         flag = False
         while flag == False:
             while os.path.isfile(command_name) == False:
-                time.sleep(0.02)
+                time.sleep(0.01)
 
             with open(command_name, 'r') as f:
                 meme = f.read()
@@ -58,7 +58,7 @@ def main():
                 if meme is not None and meme != "":
                     flag = True
                     break
-                time.sleep(0.08)
+                time.sleep(0.03)
                     
         if meme == "NO_OP":
             with open(command_name, 'w') as f:
