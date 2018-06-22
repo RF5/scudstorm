@@ -19,8 +19,8 @@ summary = tf.contrib.summary
 ##############################
 ###### TRAINING CONFIG #######
 n_steps = 20
-n_generations = 10
-trunc_size = 4
+n_generations = 5
+trunc_size = 2
 replace_refbot_every = 5
 
 # the top [n_elite_in_royale] of agents will battle it out over an additional
@@ -28,12 +28,14 @@ replace_refbot_every = 5
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
 elite_additional_episodes = 4
-n_elite_in_royale = 4
+n_elite_in_royale = 2
 
 max_steps_per_eval = 25
 gamma = 0.99 # reward decay
-n_population = 12
+n_population = 4 #12
 sigma = 0.0015 # guassian std scaling
+
+scud_debug = False
 
 ##############################
 
@@ -49,10 +51,10 @@ def train(env, n_envs, no_op_vec):
     #n_population = n_envs
 
     ## TODO: change agent layers to use xavier initializer
-    agents = [Scud(name=str(i), debug=False) for i in range(n_population)]
-    refbot = Scud(name='refbot', debug=False)
+    agents = [Scud(name=str(i), debug=scud_debug) for i in range(n_population)]
+    refbot = Scud(name='refbot', debug=scud_debug)
 
-    next_generation = [Scud(name=str(i) + 'NEXT', debug=False) for i in range(n_population)]
+    next_generation = [Scud(name=str(i) + 'NEXT', debug=scud_debug) for i in range(n_population)]
 
     print(str('='*50) + '\n' + 'Beginning training\n' + str('='*50) )
     s = Stopwatch()
@@ -80,7 +82,7 @@ def train(env, n_envs, no_op_vec):
 
         #################################
         ## Replacing reference bot
-        if g % replace_refbot_every == 0:
+        if g % replace_refbot_every == 0 and g != 0:
             print(">> STORM >> Upgrading refbot now.")
             good_params = agents[trunc_size-1].get_flat_weights()
             refbot.set_flat_weights(good_params)
@@ -161,6 +163,7 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
     print(">> ROLLOUTS >> Running rollout wave with queue length  ", init_length)
 
     while len(queue) > 0:
+        time.sleep(0.1)
         if len(queue) <= 0.5*init_length:
             print("50% done rollout...")
 
@@ -175,7 +178,8 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
         if all(suc) == False:
             print("something fucked out. Could not reset all envs.")
             return
-        obs = env.get_base_obs()
+        #obs = env.get_base_obs()
+        obs = util.get_initial_obs(env.num_envs)
 
         for a in cur_playing_agents:
             a.fitness_score = 0

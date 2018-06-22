@@ -17,7 +17,7 @@ import storm
 import time
 
 # Config vars
-n_envs = 6
+n_envs = 2
 console_debug = False
 train = True
 
@@ -62,7 +62,7 @@ def main():
         env.reset()
         ob = env.get_base_obs()
         ref_act = None
-        for i in range(5):
+        for i in range(1):
             ss = Stopwatch()
             print(">> manager >> step {}, taking actions: {}".format(i, actions))
             obs, rews = env.step(actions, ref_act) # obs is n_envs x 1

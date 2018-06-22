@@ -17,7 +17,7 @@ from common.util import write_prep_action
 from common.metrics import Stopwatch
 
 # Config variables
-jar_name = 'tower-defence-runner-1.1.0.jar'
+jar_name = 'tower-defence-runner-1.1.2.jar'
 config_name = 'config.json'
 wrapper_out_filename = 'wrapper_out.txt'
 state_name = 'state.json'
@@ -89,6 +89,9 @@ class Env():
             if self.debug:
                 print(">> pyenv {} >> writing 2 to file {}".format(self.name, self.in_file))
             f.write('2')
+
+    
+
         obs = None
         reward = None
         stopw = Stopwatch()
@@ -125,6 +128,7 @@ class Env():
             reward = curS - self.score
             self.score = curS
 
+        
         ref_obs, _ = self.refenv.step(ref_act)
 
         k = np.asarray([obs,])
@@ -138,8 +142,8 @@ class Env():
         '''
         while os.path.isfile(self.state_file) == False:
             if self.debug:
-                print(">> PYENV >> waiting for state file  ", self.state_file, ' to appear')
-            time.sleep(0.01)
+               print(">> PYENV >> waiting for state file  ", self.state_file, ' to appear')
+            time.sleep(0.02)
         try:
             k = json.load(open(self.state_file,'r'))
         except json.decoder.JSONDecodeError as e:
@@ -160,7 +164,8 @@ class Env():
         if self.proc is not None:
             self.proc.kill()
         self.needs_reset = False
-
+        
+        # trying to kill jar wrapper of this env
         pid_file = os.path.join(self.run_path, 'wrapper_pid.txt')
         if os.path.isfile(pid_file):
             with open(pid_file, 'r') as f:
@@ -178,7 +183,26 @@ class Env():
                 print(">> PYENV >> Attempted to close wrapper pid but the wrapper pid file was not found ")
         time.sleep(0.1)
 
+        # trying to kill jar wrapper of ref env
+        # refpid_file = os.path.join(self.refbot_path, 'wrapper_pid.txt')
+        # if os.path.isfile(refpid_file):
+        #     with open(refpid_file, 'r') as f:
+        #         wrapper_pid2 = int(f.read())
+        #         if wrapper_pid2 == 0:
+        #             return None
+        #         else:
+        #             try:
+        #                 os.kill(wrapper_pid2, signal.SIGTERM)
+        #             except PermissionError as e:
+        #                 if self.debug:
+        #                     print(">> PYENV ", self.name, " >> Attempted to close refbot wrapper pid ", wrapper_pid2, " but got ERROR ", e)
+        # else:
+        #     if self.debug:
+        #         print(">> PYENV >> Attempted to close refbot wrapper pid but the wrapper pid file was not found ")
+        # time.sleep(0.1)
+
         command = 'java -jar ' + os.path.join(self.run_path, jar_name)
+
         if self.debug:
             self.proc = subprocess.Popen(command, cwd=self.run_path)
             print("Opened process: ", str(command), " with pid ", self.proc.pid)
@@ -245,12 +269,12 @@ class RefEnv():
         self.in_file = os.path.join(self.ref_path, wrapper_out_filename)
         self.state_file = os.path.join(self.ref_path, state_name)
         self.bot_file = os.path.join(self.ref_path, bot_file_name)
+        self.eeenv = env
 
     def step(self, action):
         x, y, build = action
-
         write_prep_action(x, y, build, path=self.ref_path, debug=self.debug)
-
+        
         with open(self.in_file, 'w') as f:
             # we want start of a new step
             if self.debug:
@@ -259,6 +283,7 @@ class RefEnv():
         obs = None
         #reward = None
         stopw = Stopwatch()
+
         while True:
             with open(self.in_file, 'r') as ff:
                 k = ff.read()
@@ -302,10 +327,14 @@ class RefEnv():
                 print(">> PYENV REFBOT >> waiting for state file  ", self.state_file, ' to appear')
             time.sleep(0.01)
 
-        try:
-            k = json.load(open(self.state_file,'r'))
-        except json.decoder.JSONDecodeError as e:
-            k = None
-            print("Failed to decode json state! Got error ", e)
+        flag = False
+        while flag == False:
+            try:
+                k = json.load(open(self.state_file,'r'))
+                flag = True
+                break
+            except json.decoder.JSONDecodeError as e:
+                k = None
+                print(">> REF ENV >> Failed to decode json state! Got error ", e)
 
         return k

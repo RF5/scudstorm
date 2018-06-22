@@ -72,10 +72,15 @@ class Scud(object):
         self.opponent_info = self.getPlayerInfo('B')
         
         self.round = self.game_state['gameDetails']['round']
-        
-        self.prices = {"ATTACK":self.game_state['gameDetails']['buildingPrices']['ATTACK'],
-                       "DEFENSE":self.game_state['gameDetails']['buildingPrices']['DEFENSE'],
-                       "ENERGY":self.game_state['gameDetails']['buildingPrices']['ENERGY']}
+
+        # works for jar v1.1.0         
+        # self.prices = {"ATTACK":self.game_state['gameDetails']['buildingPrices']['ATTACK'],
+        #                "DEFENSE":self.game_state['gameDetails']['buildingPrices']['DEFENSE'],
+        #                "ENERGY":self.game_state['gameDetails']['buildingPrices']['ENERGY']}
+        # works for jar v1.1.2
+        self.prices = {"ATTACK": self.game_state['gameDetails']['buildingsStats']['ATTACK']['price'],
+                       "DEFENSE":self.game_state['gameDetails']['buildingsStats']['DEFENSE']['price'],
+                       "ENERGY":self.game_state['gameDetails']['buildingsStats']['ENERGY']['price']}
 
         if self.debug and debug_verbose:
             log("rows: " + str(self.rows))
@@ -208,7 +213,6 @@ class Scud(object):
             projectiles.append(temp)
             
         return projectiles
-                
         
     def get_flat_weights(self):
         ## Not actually flat weights atm

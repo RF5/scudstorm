@@ -11,7 +11,7 @@ import sys
 from shutil import copy2
 import traceback
 
-debug = False
+debug = True
 
 def fileLog(msg):
     if debug:
@@ -46,13 +46,7 @@ def main():
                     flag = True
                     break
                 time.sleep(0.06)
-                
 
-        fileLog("our inner dir = " + str(this_dir))
-        with open(wrapper_path, 'w') as f:
-            f.write('1')
-
-        fileLog("help me! command_name = " + str(command_name))
         flag = False
         while flag == False:
             while os.path.isfile(command_name) == False:

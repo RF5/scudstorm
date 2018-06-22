@@ -8,6 +8,7 @@ import os
 import numpy as np
 import tensorflow as tf
 from common.metrics import log
+import json
 
 #debug = True
 ## Config stuff that relate to the game engine
@@ -63,3 +64,14 @@ def write_action(x,y,building, path, debug=True):
 	outfl.close()
 	return
 
+def get_initial_obs(n_envs):
+	lys = []
+	for _ in range(n_envs):
+		zero_state_file = os.path.join(os.path.dirname((os.path.abspath(__file__))), 'initial_state.json') # now in common dir
+		k = json.load(open(zero_state_file,'r'))
+		n = json.load(open(zero_state_file,'r'))
+		x = np.asarray([k,])
+		y = np.asarray([n,])
+		intermediate = np.concatenate([x, y], axis=-1)
+		lys.append(intermediate)
+	return np.stack(lys, axis=0)

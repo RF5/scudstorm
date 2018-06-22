@@ -1,5 +1,6 @@
 {
   "round-state-output-location": "./matchlogs",
+  "game-config-file-location": "../../game-config.properties",
   "max-runtime-ms": 40000,
   "player-a": "./",
   "player-b": "./refbot"

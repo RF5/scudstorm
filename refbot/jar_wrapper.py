@@ -11,7 +11,7 @@ import sys
 from shutil import copy2
 import traceback
 
-debug = False
+debug = True
 
 def fileLog(msg):
     if debug:
@@ -21,6 +21,7 @@ def fileLog(msg):
 def main():
     try:
         # Config (generics)
+        time.sleep(0.01)
         wrapper_out_filename = 'wrapper_out.txt'
 
         this_dir = os.path.dirname(os.path.abspath(__file__)) # inside our running dir
@@ -46,11 +47,6 @@ def main():
                     flag = True
                     break
                 time.sleep(0.03)
-                
-
-        fileLog("our inner dir = " + str(this_dir))
-        with open(wrapper_path, 'w') as f:
-            f.write('1')
 
         fileLog("help me! command_name = " + str(command_name))
         flag = False
@@ -78,7 +74,8 @@ def main():
 
         with open(wrapper_path, 'w') as f:
             f.write('1')
-        fileLog("Wrote 0 to wrapper file! We should not end on this")
+        fileLog("Wrote 1 to wrapper file! We should not end on this")
+        time.sleep(0.01)
     except Exception as err:
         try:
             exc_info = sys.exc_info()
@@ -89,6 +86,7 @@ def main():
                 for line in k:
                     f.write(line + "\n")
             del exc_info
+            
 
 if __name__ == '__main__':
     main()
