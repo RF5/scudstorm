@@ -364,6 +364,20 @@ class Scud(object):
         self.fitness_score = np.mean(self.fitness_averaging_list)
         self.fitness_averaging_list.clear()
 
+    def save(self, filepath, savename=None):  
+        if savename is None:
+            path = os.path.join(filepath, str(self.name) + '.h5')
+        else:
+            path = os.path.join(filepath, str(savename) + '.h5')
+        self.model.save(path, include_optimizer=False)
+        print(">> SCUD >> Saved model to file ", path)
+    
+    def load(self, filepath, savename):
+        path = os.path.join(filepath, str(savename) + '.h5')
+        self.model = tf.keras.models.load_model(path)
+        print(">> SCUD >> Model restored from file ", path)
+
+
 if __name__ == '__main__':
 
     k = Stopwatch()

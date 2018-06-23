@@ -21,6 +21,7 @@ def fileLog(msg):
 def main():
     try:
         # Config (generics)
+        time.sleep(0.01)
         wrapper_out_filename = 'wrapper_out.txt'
 
         this_dir = os.path.dirname(os.path.abspath(__file__)) # inside our running dir

@@ -27,6 +27,19 @@ def get_logdir(name=None):
 	util_log(log_dir)
 	return log_dir
 
+def get_savedir(name=None):
+	'''
+	returns the save dir corresponding to the supplied name
+	'''
+	base_dir = os.path.dirname(os.path.dirname((os.path.abspath(__file__)))) # now in scudstorm directory
+	if name is not None:
+		save_dir = os.path.join(base_dir, 'saves', str(name))
+	else:
+		save_dir = os.path.join(base_dir, 'saves')
+
+	util_log("saving to " + str(save_dir))
+	return save_dir
+
 def util_log(msg):
 	print(">> UTIL LOG >>\t", msg)
 

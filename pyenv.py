@@ -22,7 +22,7 @@ config_name = 'config.json'
 wrapper_out_filename = 'wrapper_out.txt'
 state_name = 'state.json'
 bot_file_name = 'bot.json'
-per_step_reward_penalty = -8
+per_step_reward_penalty = -10
 
 class Env():
 
@@ -118,7 +118,7 @@ class Env():
                     obs = self.load_state()
                     break
             
-            if stopw.deltaT() > 10:
+            if stopw.deltaT() > 6:
                 # we have waited more than 3s, game clearly ended
                 self.needs_reset = True
                 #if self.debug:
@@ -178,6 +178,7 @@ class Env():
 
             with open(os.path.join(self.refbot_path, 'mylog.txt'), 'a') as f:
                 f.write("RESETTING!!!")
+        time.sleep(0.01)
 
         if self.proc is not None:
             self.proc.kill()
@@ -340,11 +341,11 @@ class RefEnv():
                     obs = self.load_state()
                     break
             
-            if stopw.deltaT() > 10:
+            if stopw.deltaT() > 6:
                 # we have waited more than 3s, game clearly ended
                 self.needs_reset = True
                 #if self.debug:
-                print('pyenv: something very bad happened in refbot ', self.name, '. Took more than 10s to respond...')
+                print('pyenv: something very bad happened in refbot ', self.name, '. Took more than 6s to respond...')
                 break
 
             time.sleep(0.01)
