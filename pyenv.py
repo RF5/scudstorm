@@ -91,6 +91,12 @@ class Env():
             tp = np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
             return tp, np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
             
+        with open(os.path.join(self.run_path, 'mylog.txt'), 'a') as f:
+            f.write(str(time.time()) + "\t-->Wanting to do op:!!!\t" + str(action) + '\n')
+
+        with open(os.path.join(self.refbot_path, 'mylog.txt'), 'a') as f:
+            f.write(str(time.time()) + "\t-->Wanting to do op:!!!\t" + str(ref_act) + '\n')
+
         x, y, build = action
         write_prep_action(x, y, build, path=self.run_path, debug=self.debug)
 
@@ -103,6 +109,7 @@ class Env():
     
 
         obs = None
+        should_load_obs = False
         reward = None
         stopw = Stopwatch()
         while True:
@@ -115,21 +122,25 @@ class Env():
                 if k == 1:
                     #print("just wrote 0 to the ", self.out_file)
                     # a new turn has just been processed
-                    obs = self.load_state()
+                    should_load_obs = True
                     break
             
             if stopw.deltaT() > 6:
                 # we have waited more than 3s, game clearly ended
                 self.needs_reset = True
                 #if self.debug:
-                print('pyenv: env ' + str(self.name) + ' with pid ' + str(self.pid) + ' needs reset.')
+                print('pyenv: env ' + str(self.name) + ' with pid ' + str(self.pid) + ' needs reset.', time.time())
                 break
 
             time.sleep(0.01)
         # TODO: possibly pre-parse obs here and derive a reward from it?
-        
+
+        ref_obs, _ = self.refenv.step(ref_act)
+        if should_load_obs:
+            obs = self.load_state()
+
         if obs is None and self.debug == True:
-            print(">> PY_ENV >> MAIN OBS IS NONE")
+            print(">> PY_ENV >> MAIN OBS IS NONE (", self.name, ")")
 
         if obs is not None:
             # Infer reward:
@@ -138,9 +149,6 @@ class Env():
             self.score_delta = curS - self.score
             reward = self.score_delta + per_step_reward_penalty
             self.score = curS
-
-        
-        ref_obs, _ = self.refenv.step(ref_act)
 
         k = np.asarray([obs,])
         u = np.asarray([ref_obs,])
@@ -172,18 +180,19 @@ class Env():
         return np.concatenate([x, y], axis=-1)
 
     def reset(self):
-        if self.debug:
+        if True:
             with open(os.path.join(self.run_path, 'mylog.txt'), 'a') as f:
-                f.write("RESETTING!!!")
+                f.write(str(time.time()) + "\t-->RESETTING!!!\n")
 
             with open(os.path.join(self.refbot_path, 'mylog.txt'), 'a') as f:
-                f.write("RESETTING!!!")
+                f.write(str(time.time()) + "\t-->RESETTING!!!\n")
         time.sleep(0.01)
 
         if self.proc is not None:
-            self.proc.kill()
+            self.proc.terminate()
+            self.proc.wait()
         self.needs_reset = False
-        time.sleep(0.07)
+        time.sleep(0.08)
         # trying to kill jar wrapper of this env
         pid_file = os.path.join(self.run_path, 'wrapper_pid.txt')
         if os.path.isfile(pid_file):
@@ -208,34 +217,32 @@ class Env():
         else:
             if self.debug:
                 print(">> PYENV >> Attempted to close wrapper pid but the wrapper pid file was not found ")
-        time.sleep(0.07)
+        time.sleep(0.08)
 
 
         ## Trying to prevent reset bugs from propping up
-        # self.refbot_path = os.path.join(self.run_path, 'refbot')
-
         # if os.path.isdir(self.refbot_path):
         #     shutil.rmtree(self.refbot_path)
         # refbotdir = os.path.join(basedir, 'refbot')
         # shutil.copytree(refbotdir, self.refbot_path)
 
-        # trying to kill jar wrapper of ref env
-        # refpid_file = os.path.join(self.refbot_path, 'wrapper_pid.txt')
-        # if os.path.isfile(refpid_file):
-        #     with open(refpid_file, 'r') as f:
-        #         wrapper_pid2 = int(f.read())
-        #         if wrapper_pid2 == 0:
-        #             return None
-        #         else:
-        #             try:
-        #                 os.kill(wrapper_pid2, signal.SIGTERM)
-        #             except PermissionError as e:
-        #                 if self.debug:
-        #                     print(">> PYENV ", self.name, " >> Attempted to close refbot wrapper pid ", wrapper_pid2, " but got ERROR ", e)
-        # else:
-        #     if self.debug:
-        #         print(">> PYENV >> Attempted to close refbot wrapper pid but the wrapper pid file was not found ")
-        # time.sleep(0.1)
+        #trying to kill jar wrapper of ref env
+        refpid_file = os.path.join(self.refbot_path, 'wrapper_pid.txt')
+        if os.path.isfile(refpid_file):
+            with open(refpid_file, 'r') as f:
+                wrapper_pid2 = int(f.read())
+                if wrapper_pid2 == 0:
+                    return None
+                else:
+                    try:
+                        os.kill(wrapper_pid2, signal.SIGTERM)
+                    except PermissionError as e:
+                        if self.debug:
+                            print(">> PYENV ", self.name, " >> Attempted to close refbot wrapper pid ", wrapper_pid2, " but got ERROR ", e)
+        else:
+            if self.debug:
+                print(">> PYENV >> Attempted to close refbot wrapper pid but the wrapper pid file was not found ")
+        time.sleep(0.08)
 
         command = 'java -jar ' + os.path.join(self.run_path, jar_name)
 
@@ -256,7 +263,8 @@ class Env():
         
         if self.pid is not None:
             self.needs_reset = True
-            self.proc.kill()
+            self.proc.terminate()
+            self.proc.wait()
         else:
             return None
 
@@ -318,6 +326,9 @@ class RefEnv():
     def step(self, action):
         x, y, build = action
         write_prep_action(x, y, build, path=self.ref_path, debug=self.debug)
+
+        with open(os.path.join(self.ref_path, 'mylog.txt'), 'a') as f:
+            f.write(str(time.time()) + "\t-->Writing refbot action:!!!\t" + str(action) + '\n')
         
         with open(self.in_file, 'w') as f:
             # we want start of a new step
@@ -327,6 +338,7 @@ class RefEnv():
         obs = None
         #reward = None
         stopw = Stopwatch()
+        should_load_obs = False
 
         while True:
             with open(self.in_file, 'r') as ff:
@@ -338,14 +350,14 @@ class RefEnv():
                 if k == 1:
                     #print("just wrote 0 to the ", self.out_file)
                     # a new turn has just been processed
-                    obs = self.load_state()
+                    should_load_obs = True
                     break
             
             if stopw.deltaT() > 6:
                 # we have waited more than 3s, game clearly ended
                 self.needs_reset = True
                 #if self.debug:
-                print('pyenv: something very bad happened in refbot ', self.name, '. Took more than 6s to respond...')
+                print('pyenv: something very bad happened in refbot ', self.name, '. Took more than 6s to respond...', time.time())
                 break
 
             time.sleep(0.01)
@@ -357,8 +369,11 @@ class RefEnv():
         #     curS = float(obs['players'][0]['score'])
         #     reward = curS - self.score
         #     self.score = curS
+        if should_load_obs:
+            obs = self.load_state()
+
         if obs is None:
-            print(">> PY_ENV >> REF OBS IS NONE")
+            print(">> PY_ENV >> REF OBS IS NONE. (", self.name, ")")
 
         return obs, 0
 

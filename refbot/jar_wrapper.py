@@ -11,12 +11,12 @@ import sys
 from shutil import copy2
 import traceback
 
-debug = False
+debug = True
 
 def fileLog(msg):
     if debug:
         with open('mylog.txt', 'a') as f:
-            f.write(str(msg) + "\n")
+            f.write(str(time.time()) + ':\t' + str(msg) + "\n")
 
 def main():
     try:
@@ -48,7 +48,6 @@ def main():
                     break
                 time.sleep(0.03)
 
-        fileLog("help me! command_name = " + str(command_name))
         flag = False
         while flag == False:
             while os.path.isfile(command_name) == False:
@@ -75,7 +74,6 @@ def main():
         with open(wrapper_path, 'w') as f:
             f.write('1')
         fileLog("Wrote 1 to wrapper file! We should not end on this")
-        time.sleep(0.01)
     except Exception as err:
         try:
             exc_info = sys.exc_info()
@@ -85,8 +83,7 @@ def main():
             with open('mylog2.txt', 'w') as f:
                 for line in k:
                     f.write(line + "\n")
-            del exc_info
-            
+            del exc_info         
 
 if __name__ == '__main__':
     main()

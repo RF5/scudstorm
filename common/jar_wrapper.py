@@ -11,12 +11,12 @@ import sys
 from shutil import copy2
 import traceback
 
-debug = False
+debug = True
 
 def fileLog(msg):
     if debug:
         with open('mylog.txt', 'a') as f:
-            f.write(str(msg) + "\n")
+            f.write(str(time.time()) + ':\t' + str(msg) + "\n")
 
 def main():
     try:
