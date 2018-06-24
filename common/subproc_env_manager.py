@@ -63,6 +63,8 @@ class SubprocEnvManager(object):
 		for remote in self.work_remotes:
 			remote.close()
 
+		self.reset_counter = 0
+
 		# The action space is non-stationary, so these lines don't really make sense. 
 		#self.remotes[0].send(('get_spaces', None))
 		#self.action_space, self.observation_space = self.remotes[0].recv()
@@ -86,12 +88,14 @@ class SubprocEnvManager(object):
 		return np.stack(obs, axis=0), np.stack(rews, axis=0)
 
 	def reset(self):
+		self.reset_counter += 1
 		for remote in self.remotes:
 			remote.send(('reset', None))
 		
 		k = np.stack([remote.recv() for remote in self.remotes])
 		if verbose:
-			print("============\nCLEARED RESET\n============")
+			print("============\nCLEARED RESET (Reset counter = {})\n============".format(self.reset_counter))
+		#print("\n-----> Reset counter = {}".format(self.reset_counter))
 		return k
 
 	# def action_spec(self):

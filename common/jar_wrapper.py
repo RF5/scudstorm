@@ -11,7 +11,7 @@ import sys
 from shutil import copy2
 import traceback
 
-debug = True
+debug = False
 
 def fileLog(msg):
     if debug:
@@ -62,18 +62,25 @@ def main():
                 time.sleep(0.03)
                     
         if meme == "NO_OP":
-            with open(command_name, 'w') as f:
-                f.write(" ")
+            outfl = open('command.txt','w')
+            outfl.write("")
+            outfl.close()
+            #with open(command_name, 'w') as f:
+            #    f.write(" ")
+        else:
+            outfl = open('command.txt','w')
+            outfl.write(meme)
+            outfl.close()
 
-        copy2(command_name, proper_name)
+        #copy2(command_name, proper_name)
         os.remove(command_name)
         #os.rename(command_name, proper_name)
         
         fileLog("Found it!! Exiting to next round!")
-
         with open(wrapper_path, 'w') as f:
             f.write('1')
-        fileLog("Wrote 0 to wrapper file! We should not end on this")
+        fileLog("Wrote 1 to wrapper file! We should not end on this")
+        sys.exit(0)
     except Exception as err:
         try:
             exc_info = sys.exc_info()

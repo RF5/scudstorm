@@ -29,11 +29,11 @@ replace_refbot_every = 25
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
 elite_additional_episodes = 5
-n_elite_in_royale = 3
+n_elite_in_royale = 5
 
 max_steps_per_eval = 30#35
 gamma = 0.98 # reward decay
-n_population = 60#12#100
+n_population = 70#12#100
 sigma = 0.002 # guassian std scaling
 
 scud_debug = False
@@ -225,14 +225,24 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
             obs, rews = env.step(actions, p2_actions=ref_actions)
             interior_steps += n_envs
             ## TODO: loop through obs and check which one is a ControlObj, and stop processing the agents for the rest of that episode
-
+            failure = False
             for i, a in enumerate(cur_playing_agents):
                 if type(rews[i][0]) == util.ControlObject:
                     if rews[i][0].code == "EARLY":
                         a.mask_output = True
                         a.fitness_score = a.fitness_score + 1
+                    elif rews[i][0].code == "FAILURE":
+                        # redo this whole fucking batch
+                        failure = True
+                        break
                 else:
                     a.fitness_score = rews[i][0] + gamma*a.fitness_score
+
+            if failure:
+                print("Failure detected. Redoing last batch... (len Q before = ", len(queue), ' ; after = ')
+                queue = cur_playing_agents + queue
+                print(len(queue))
+                break
 
             if debug:
                 print("obs shape = ", obs.shape)
