@@ -19,6 +19,7 @@ from common.metrics import Stopwatch
 # Config variables
 jar_name = 'tower-defence-runner-1.1.2.jar'
 config_name = 'config.json'
+game_config_name = 'game-config.properties'
 wrapper_out_filename = 'wrapper_out.txt'
 state_name = 'state.json'
 bot_file_name = 'bot.json'
@@ -55,6 +56,7 @@ class Env():
         copy2(wrapper_path, self.run_path)
         botdir = os.path.join(basedir, bot_file_name)
         copy2(botdir, self.run_path)
+        copy2(os.path.join(basedir, game_config_name), self.run_path)
 
         # Copying over reference bot
         self.refbot_path = os.path.join(self.run_path, 'refbot')
@@ -160,7 +162,7 @@ class Env():
             if should_load_obs == True and should_load_obs2 == True:
                 break
             
-            if stopw.deltaT() > 4:
+            if stopw.deltaT() > 8:
                 # we have waited more than 3s, game clearly ended
                 self.needs_reset = True
                 failure = True
@@ -213,11 +215,17 @@ class Env():
             if self.debug:
                print(">> PYENV >> waiting for state file  ", self.state_file, ' to appear')
             time.sleep(0.02)
-        try:
-            k = json.load(open(self.state_file,'r'))
-        except json.decoder.JSONDecodeError as e:
-            k = None
-            print("Failed to decode json state! Got error ", e)
+
+        flag = False
+        while flag == False:
+            try:
+                k = json.load(open(self.state_file,'r'))
+                flag = True
+                break
+            except json.decoder.JSONDecodeError as e:
+                k = None
+                print(">> PYENV >> Failed to decode json state! Got error ", e)
+                time.sleep(0.01)
 
         return k
 
@@ -260,7 +268,7 @@ class Env():
                         flag = True
                         try:
                             os.kill(wrapper_pid, signal.SIGTERM)
-                        except PermissionError as e:
+                        except (PermissionError, ProcessLookupError) as e:
                             if self.debug:
                                 print(">> PYENV ", self.name, " >> Attempted to close wrapper pid ", wrapper_pid, " but got ERROR ", e)
                         break
@@ -283,7 +291,7 @@ class Env():
                 else:
                     try:
                         os.kill(wrapper_pid2, signal.SIGTERM)
-                    except PermissionError as e:
+                    except (PermissionError, ProcessLookupError) as e:
                         if self.debug:
                             print(">> PYENV ", self.name, " >> Attempted to close refbot wrapper pid ", wrapper_pid2, " but got ERROR ", e)
         else:
@@ -294,10 +302,10 @@ class Env():
         command = 'java -jar ' + os.path.join(self.run_path, jar_name)
 
         if self.debug:
-            self.proc = subprocess.Popen(command, cwd=self.run_path)
+            self.proc = subprocess.Popen(command, shell=True ,cwd=self.run_path)
             print("Opened process: ", str(command), " with pid ", self.proc.pid)
         else:
-            self.proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, cwd=self.run_path)
+            self.proc = subprocess.Popen(command, shell=True, stdout=subprocess.DEVNULL, cwd=self.run_path)
         
         self.pid = self.proc.pid
 
@@ -332,7 +340,7 @@ class Env():
                         flag = True
                         try:
                             os.kill(wrapper_pid, signal.SIGTERM)
-                        except PermissionError as e:
+                        except (PermissionError, ProcessLookupError) as e:
                             if self.debug:
                                 print(">> PYENV ", self.name, " >> Attempted to close wrapper pid ", wrapper_pid, " but got ERROR ", e)
                         break
@@ -442,5 +450,6 @@ class RefEnv():
             except json.decoder.JSONDecodeError as e:
                 k = None
                 print(">> REF ENV >> Failed to decode json state! Got error ", e)
+                time.sleep(0.01)
 
         return k

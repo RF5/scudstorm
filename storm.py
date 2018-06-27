@@ -20,8 +20,10 @@ summary = tf.contrib.summary
 ##############################
 ###### TRAINING CONFIG #######
 n_steps = 20
-n_generations = 50#100
+n_generations = 100#100
 trunc_size = 5#4
+
+## Refbot/opponent upgrading config
 replace_refbot_every = 25
 
 # the top [n_elite_in_royale] of agents will battle it out over an additional
@@ -33,13 +35,14 @@ n_elite_in_royale = 5
 
 max_steps_per_eval = 30#35
 gamma = 0.98 # reward decay
-n_population = 70#12#100
+n_population = 100#12#100
 sigma = 0.002 # guassian std scaling
 
 scud_debug = False
 verbose_training = False
 elite_score_moving_avg_periods = 4
 elite_savename = 'elite'
+save_elite_every = 10
 
 ##############################
 
@@ -56,9 +59,9 @@ def train(env, n_envs, no_op_vec):
     refbot = Scud(name='refbot', debug=scud_debug)
     total_steps = 0
 
-    #refbot.load(util.get_savedir(), elite_savename)
     elite_moving_average = metrics.MovingAverage(elite_score_moving_avg_periods)
     next_generation = [Scud(name=str(i) + 'next', debug=scud_debug) for i in range(n_population)]
+    refbot_queue = []
 
     print(str('='*50) + '\n' + 'Beginning training\n' + str('='*50) )
     s = Stopwatch()
@@ -138,6 +141,9 @@ def train(env, n_envs, no_op_vec):
             summary.scalar('time/wall_clock_time', total_s.deltaT())
             summary.scalar('time/single_gen_time', s.deltaT())
             summary.scalar('time/total_game_steps', total_steps)
+
+        if g % save_elite_every == 0 and g != 0:
+            elite.save(util.get_savedir('checkpoints'), 'gen' + str(g) + 'elite')
 
         global_step.assign_add(1)
 

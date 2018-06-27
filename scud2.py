@@ -52,6 +52,7 @@ class Scud(object):
             self.get_spatial = self.add_spatial(self.base)
 
             self.model = tf.keras.models.Model(inputs=self.input, outputs=[self.get_non_spatial, self.get_spatial])
+            #self.model.compile(optimizer=tf.train.AdamOptimizer) #gives error of 'only tf native optimizers are supported in eager mode'
             self.tau_lineage = []
         return None
 
@@ -368,7 +369,11 @@ class Scud(object):
         if savename is None:
             path = os.path.join(filepath, str(self.name) + '.h5')
         else:
-            path = os.path.join(filepath, str(savename) + '.h5')
+            if savename.endswith('.h5') == False:
+                path = os.path.join(filepath, str(savename) + '.h5')
+            else:
+                path = os.path.join(filepath, str(savename))
+        os.makedirs(path, exist_ok=True)
         self.model.save(path, include_optimizer=False)
         print(">> SCUD >> Saved model to file ", path)
     
