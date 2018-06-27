@@ -58,7 +58,7 @@ def main():
                 if meme is not None and meme != "":
                     flag = True
                     break
-                time.sleep(0.03)
+                time.sleep(0.02)
                     
         if meme == "NO_OP":
             outfl = open('command.txt','w')

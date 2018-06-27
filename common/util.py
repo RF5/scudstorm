@@ -27,7 +27,7 @@ def get_logdir(name=None):
 	util_log(log_dir)
 	return log_dir
 
-def get_savedir(name=None):
+def get_savedir(name=None, debug=False):
 	'''
 	returns the save dir corresponding to the supplied name
 	'''
@@ -37,7 +37,8 @@ def get_savedir(name=None):
 	else:
 		save_dir = os.path.join(base_dir, 'saves')
 
-	util_log("saving to " + str(save_dir))
+	if debug:
+		util_log("returning save directory " + str(save_dir))
 	return save_dir
 
 def util_log(msg):

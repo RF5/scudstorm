@@ -9,6 +9,7 @@ import time
 import subprocess
 import os
 import json
+import sys
 import numpy as np
 from shutil import copy2
 import shutil
@@ -25,6 +26,11 @@ state_name = 'state.json'
 bot_file_name = 'bot.json'
 per_step_reward_penalty = -10
 
+binary_step_penalty = -0.01
+
+possible_reward_modes = ['dense', 'binary']
+reward_mode = possible_reward_modes[1]
+
 class Env():
 
     def __init__(self, name, debug):
@@ -36,6 +42,7 @@ class Env():
         # setting up jar runner
         self.needs_reset = True
         self.pid = None
+        self.done = False
 
     def setup_directory(self):
         # creates the dirs responsible for this env, 
@@ -82,14 +89,6 @@ class Env():
         if self.needs_reset:
             self.reset()
 
-        if self.proc.poll() != None:
-            # env ended last step, so reset:
-            if self.debug:
-                print(">> PYENV ", self.name ," >>  Ended early")
-            cntrl_obj = ControlObject('EARLY')
-            tp = np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
-            return tp, np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
-
         #######################
         ## Debug messages
         if self.debug:
@@ -120,6 +119,16 @@ class Env():
             if self.debug:
                 print(">> pyenv {} >> writing 2 to file {}".format(self.refenv.name, self.refenv.in_file))
             f.write('2')
+
+        #######################
+        ## Checking if episode ended early
+        if self.proc.poll() != None and self.done == True:
+            # env ended last step, so reset:
+            if self.debug:
+                print(">> PYENV ", self.name ," >>  Ended early")
+            cntrl_obj = ControlObject('EARLY')
+            tp = np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
+            return tp, np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
 
         #######################
         ## Taking step
@@ -162,12 +171,35 @@ class Env():
             if should_load_obs == True and should_load_obs2 == True:
                 break
             
-            if stopw.deltaT() > 8:
+            if self.proc.poll() != None and self.done == False:
+                #ep ended early.
+                if self.debug:
+                    print("PYENV: >> GAME ENDING EARLY FOR THE FIRST TIME")
+                self.done = True
+                obs = self.load_state()
+                ref_obs = self.refenv.load_state()
+                if obs['players'][0]['playerType'] == 'A':
+                    a_hp = obs['players'][0]['health']
+                    b_hp = obs['players'][1]['health']
+                else:
+                    a_hp = obs['players'][1]['health']
+                    b_hp = obs['players'][0]['health']
+                k = np.asarray([obs,])
+                u = np.asarray([ref_obs,])
+                return_obs = np.concatenate([k, u], axis=-1)
+                if a_hp > b_hp:
+                    # player a wins
+                    return return_obs, np.concatenate([np.asarray([1.0,]), np.asarray([-1.0,])], axis=-1)
+                elif a_hp < b_hp:
+                    return return_obs, np.concatenate([np.asarray([-1.0,]), np.asarray([1.0,])], axis=-1)
+                else:
+                    return return_obs, np.concatenate([np.asarray([0.0,]), np.asarray([0.0,])], axis=-1)
+
+            if stopw.deltaT() > 3:
                 # we have waited more than 3s, game clearly ended
                 self.needs_reset = True
                 failure = True
-                #if self.debug:
-                print('pyenv: env ' + str(self.name) + ' with pid ' + str(self.pid) + ' needs reset. (', should_load_obs, ',',should_load_obs2, ')' , time.time())
+                print('pyenv: env ' + str(self.name) + ' with pid ' + str(self.pid) + ' encountered error. (', should_load_obs, ',',should_load_obs2, ')' , time.time())
                 break
 
             time.sleep(0.01)
@@ -192,6 +224,9 @@ class Env():
             tp = np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
             return tp, np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
 
+        # print('-----A------------->', obs['players'][0]['health'])
+        # print('-----B------------->', obs['players'][1]['health'])
+
         ########################
         ## Forming rewards and packaging the obs into a good numpy form
         if obs is not None:
@@ -202,10 +237,20 @@ class Env():
             reward = self.score_delta + per_step_reward_penalty
             self.score = curS
 
+        if ref_obs is not None:
+            curS2 = float(ref_obs['players'][0]['score'])
+            self.refenv.score_delta = curS2 - self.refenv.score
+            ref_reward = self.refenv.score_delta + per_step_reward_penalty
+            self.refenv.score = curS2
+
         k = np.asarray([obs,])
         u = np.asarray([ref_obs,])
         return_obs = np.concatenate([k, u], axis=-1)
-        return return_obs, np.concatenate([np.asarray([reward,]), np.asarray([0.0,])], axis=-1)
+        if reward_mode == 'dense':
+            return return_obs, np.concatenate([np.asarray([reward,]), np.asarray([ref_reward,])], axis=-1)
+        elif reward_mode == 'binary':
+            return return_obs, np.concatenate([np.asarray([binary_step_penalty,]), np.asarray([binary_step_penalty,])], axis=-1)
+
 
     def load_state(self):
         '''
@@ -214,7 +259,7 @@ class Env():
         while os.path.isfile(self.state_file) == False:
             if self.debug:
                print(">> PYENV >> waiting for state file  ", self.state_file, ' to appear')
-            time.sleep(0.02)
+            time.sleep(0.01)
 
         flag = False
         while flag == False:
@@ -244,13 +289,13 @@ class Env():
 
             with open(os.path.join(self.refbot_path, 'mylog.txt'), 'a') as f:
                 f.write(str(time.time()) + "\t-->RESETTING!!!\n")
-        time.sleep(0.01)
 
         if self.proc is not None:
             self.proc.terminate()
             self.proc.wait()
         self.needs_reset = False
-        time.sleep(0.07)
+        self.done = False
+        time.sleep(0.05)
         # trying to kill jar wrapper of this env
         pid_file = os.path.join(self.run_path, 'wrapper_pid.txt')
         if os.path.isfile(pid_file):
@@ -297,15 +342,20 @@ class Env():
         else:
             if self.debug:
                 print(">> PYENV >> Attempted to close refbot wrapper pid but the wrapper pid file was not found ")
-        time.sleep(0.07)
+        time.sleep(0.05)
 
         command = 'java -jar ' + os.path.join(self.run_path, jar_name)
 
+        if sys.platform == "win32":
+            she = False
+        else:
+            she = True
+
         if self.debug:
-            self.proc = subprocess.Popen(command, shell=True ,cwd=self.run_path)
+            self.proc = subprocess.Popen(command, shell=she ,cwd=self.run_path)
             print("Opened process: ", str(command), " with pid ", self.proc.pid)
         else:
-            self.proc = subprocess.Popen(command, shell=True, stdout=subprocess.DEVNULL, cwd=self.run_path)
+            self.proc = subprocess.Popen(command, shell=she, stdout=subprocess.DEVNULL, cwd=self.run_path)
         
         self.pid = self.proc.pid
 
@@ -376,60 +426,11 @@ class RefEnv():
         self.in_file = os.path.join(self.ref_path, wrapper_out_filename)
         self.state_file = os.path.join(self.ref_path, state_name)
         self.bot_file = os.path.join(self.ref_path, bot_file_name)
+        self.score = 0
+        self.score_delta = 0
 
     def step(self, action):
         raise NotImplementedError
-        # x, y, build = action
-        # write_prep_action(x, y, build, path=self.ref_path, debug=self.debug)
-
-        # with open(os.path.join(self.ref_path, 'mylog.txt'), 'a') as f:
-        #     f.write(str(time.time()) + "\t-->Writing refbot action:!!!\t" + str(action) + '\n')
-        
-        # with open(self.in_file, 'w') as f:
-        #     # we want start of a new step
-        #     if self.debug:
-        #         print(">> pyenv {} >> writing 2 to file {}".format(self.name, self.in_file))
-        #     f.write('2')
-        # obs = None
-        # #reward = None
-        # stopw = Stopwatch()
-        # should_load_obs = False
-
-        # while True:
-        #     with open(self.in_file, 'r') as ff:
-        #         k = ff.read()
-        #         try:
-        #             k = int(k)
-        #         except ValueError:
-        #             continue
-        #         if k == 1:
-        #             #print("just wrote 0 to the ", self.out_file)
-        #             # a new turn has just been processed
-        #             should_load_obs = True
-        #             break
-            
-        #     if stopw.deltaT() > 6:
-        #         # we have waited more than 3s, game clearly ended
-        #         self.needs_reset = True
-        #         #if self.debug:
-        #         print('pyenv: something very bad happened in refbot ', self.name, '. Took more than 6s to respond...', time.time())
-        #         break
-
-        #     time.sleep(0.01)
-        # # TODO: possibly pre-parse obs here and derive a reward from it?
-        
-        # # if obs is not None:
-        # #     # Infer reward:
-        # #     #reward = float(obs['players'][0]['score']) - float(obs['players'][1]['score'])
-        # #     curS = float(obs['players'][0]['score'])
-        # #     reward = curS - self.score
-        # #     self.score = curS
-        # if should_load_obs:
-        #     obs = self.load_state()
-
-        # if obs is None:
-        #     print(">> PY_ENV >> REF OBS IS NONE. (", self.name, ")")
-
         # return obs, 0
 
     def load_state(self):

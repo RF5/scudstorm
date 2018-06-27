@@ -7,7 +7,6 @@ Author: Matthew Baas
 import tensorflow as tf
 from common import util
 import os
-import argparse
 import time
 from common.metrics import Stopwatch
 from common import metrics
@@ -22,9 +21,11 @@ summary = tf.contrib.summary
 n_steps = 20
 n_generations = 100#100
 trunc_size = 5#4
+scoring_method = 'binary' # Possibilities: 'dense' and 'binary'
 
 ## Refbot/opponent upgrading config
-replace_refbot_every = 25
+replace_refbot_every = 10
+refbot_queue_length = 3
 
 # the top [n_elite_in_royale] of agents will battle it out over an additional
 # [elite_additional_episodes] episodes (averaging rewards over them) to find the
@@ -33,9 +34,9 @@ replace_refbot_every = 25
 elite_additional_episodes = 5
 n_elite_in_royale = 5
 
-max_steps_per_eval = 30#35
-gamma = 0.98 # reward decay
-n_population = 100#12#100
+max_episode_length = 50#35
+gamma = 0.99 # reward decay
+n_population = 10#12#100
 sigma = 0.002 # guassian std scaling
 
 scud_debug = False
@@ -44,28 +45,36 @@ elite_score_moving_avg_periods = 4
 elite_savename = 'elite'
 save_elite_every = 10
 
-##############################
-
 def train(env, n_envs, no_op_vec):
     print(str('='*50) + '\n' + 'Initializing agents\n' + str('='*50) )
+    ##############################
+    ## Summary buckets
+    failed_episodes = 0
+    early_episodes = 0
 
-    # Setting up logs
+    ## Setting up logs
     writer = summary.create_file_writer(util.get_logdir('testBIG'), flush_millis=10000)
     writer.set_as_default()
     global_step = tf.train.get_or_create_global_step()
 
     ## TODO: change agent layers to use xavier initializer
     agents = [Scud(name=str(i), debug=scud_debug) for i in range(n_population)]
-    refbot = Scud(name='refbot', debug=scud_debug)
     total_steps = 0
 
     elite_moving_average = metrics.MovingAverage(elite_score_moving_avg_periods)
     next_generation = [Scud(name=str(i) + 'next', debug=scud_debug) for i in range(n_population)]
-    refbot_queue = []
+
+    refbot_queue = [Scud(name='refbot' + str(i), debug=scud_debug) for i in range(refbot_queue_length)]
+    refbot = refbot_queue[0]
+
+    ## DOES NOT WORK WITH EAGER EXECUTION
+    # with summary.always_record_summaries():
+    #     summary.graph(agents[0].model.graph)
 
     print(str('='*50) + '\n' + 'Beginning training\n' + str('='*50) )
     s = Stopwatch()
     total_s = Stopwatch()
+
     #partition_stopwatch = Stopwatch()
     for g in range(n_generations):
         #####################
@@ -83,18 +92,14 @@ def train(env, n_envs, no_op_vec):
         next_generation = tmp
         
         # evaluate fitness on each agent in population
-        agents, additional_steps = evaluate_fitness(env, agents, refbot, debug=False)
+        agents, additional_steps, early_eps, failed_eps = evaluate_fitness(env, agents, refbot, debug=False)
+        early_episodes += early_eps
+        failed_episodes += failed_eps
         total_steps += additional_steps
         # sort them based on final discounted reward
         agents = sorted(agents, key = lambda agent : agent.fitness_score, reverse=True)
 
         #partition_stopwatch.lap('fitness evaluation + sorting')
-        #################################
-        ## Replacing reference bot
-        if g % replace_refbot_every == 0 and g != 0:
-            print(str('='*50) + '\n' + '">> STORM >> Upgrading refbot now.\n' + str('='*50) )
-            good_params = agents[trunc_size-1].get_flat_weights()
-            refbot.set_flat_weights(good_params)
         
         ##################################
         ## Summary information
@@ -117,8 +122,11 @@ def train(env, n_envs, no_op_vec):
             elite_candidates = set(agents[0:n_elite_in_royale-1]) | set([elite,])
         # finding next elite by battling proposed elite candidates for some additional rounds
         print("Evaluating elite agent...")
-        elo_ags, additional_steps = evaluate_fitness(env, elite_candidates, refbot, runs=elite_additional_episodes)
+        elo_ags, additional_steps, early_eps, failed_eps = evaluate_fitness(env, elite_candidates, refbot, runs=elite_additional_episodes)
         total_steps += additional_steps
+        early_episodes += early_eps
+        failed_episodes += failed_eps
+
         elo_ags = sorted(elo_ags, key = lambda agent : agent.fitness_score, reverse=True)
         elite = elo_ags[0]
 
@@ -141,6 +149,24 @@ def train(env, n_envs, no_op_vec):
             summary.scalar('time/wall_clock_time', total_s.deltaT())
             summary.scalar('time/single_gen_time', s.deltaT())
             summary.scalar('time/total_game_steps', total_steps)
+            
+            summary.scalar('ep_info/failed_eps', failed_episodes)
+            failed_episodes = 0
+            summary.scalar('ep_info/early_eps', early_episodes)
+            early_episodes = 0
+
+        #################################
+        ## Replacing reference bot
+        if g % replace_refbot_every == 0 and g != 0:
+            toback = refbot
+            del refbot_queue[0]
+            
+            print(str('='*50) + '\n' + '">> STORM >> Upgrading refbot now.\n' + str('='*50) )
+            good_params = agents[trunc_size-1].get_flat_weights()
+            toback.set_flat_weights(good_params)
+
+            refbot_queue.append(toback)
+            refbot = refbot_queue[0]
 
         if g % save_elite_every == 0 and g != 0:
             elite.save(util.get_savedir('checkpoints'), 'gen' + str(g) + 'elite')
@@ -186,10 +212,11 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
     print(">> ROLLOUTS >> Running rollout wave with queue length  ", init_length)
     pbar = metrics.ProgressBar(init_length)
     interior_steps = 0
+    early_eps = 0
+    failed_eps = 0
 
     while len(queue) > 0:
         # KEEP THIS THERE OTHERWISE SHIT BREAKS
-        time.sleep(0.1)
         pbar.show(init_length - len(queue))
 
         if len(queue) >= n_envs:
@@ -203,7 +230,7 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
         if all(suc) == False:
             print("something fucked out. Could not reset all envs.")
             return
-        time.sleep(0.05)
+
         #obs = env.get_base_obs()
         obs = util.get_initial_obs(n_envs)
 
@@ -212,7 +239,7 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
             a.mask_output = False
 
         ## TODO: Modify this for loop to be able to end early for games which finish early
-        while step < max_steps_per_eval:
+        while step < max_episode_length:
             if debug:
                 ss = Stopwatch()
             actions = [agent.step(obs[i][0]) for i, agent in enumerate(cur_playing_agents)]
@@ -236,13 +263,17 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
                 if type(rews[i][0]) == util.ControlObject:
                     if rews[i][0].code == "EARLY":
                         a.mask_output = True
-                        a.fitness_score = a.fitness_score + 1
+                        if step == max_episode_length-1:
+                            early_eps += 1
+
                     elif rews[i][0].code == "FAILURE":
                         # redo this whole fucking batch
+                        failed_eps += 1
                         failure = True
                         break
                 else:
                     a.fitness_score = rews[i][0] + gamma*a.fitness_score
+
 
             if failure:
                 print("Failure detected. Redoing last batch... (len Q before = ", len(queue), ' ; after = ')
@@ -264,4 +295,4 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
 
     pbar.close()
 
-    return agents, interior_steps
+    return agents, interior_steps, early_eps, failed_eps

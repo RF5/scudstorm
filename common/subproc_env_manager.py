@@ -81,8 +81,8 @@ class SubprocEnvManager(object):
 		obs, rews = zip(*results)
 		# for ss in results[0]:
 		# 	print("SUBPROC ENV: ", ss, 'with length: ' + str(len(ss)))
-		#print(len(obs))
-		#print(obs[0].shape)
+		# print(len(obs))
+		# print(obs[0].shape)
 		#print('obs shape', len(obs[0]))
 		#print("ref_obs shape", len(ref_obs[]))
 		return np.stack(obs, axis=0), np.stack(rews, axis=0)

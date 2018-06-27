@@ -14,6 +14,7 @@ import tensorflow as tf
 from common.metrics import log, Stopwatch
 import numpy as np
 import common.util as util
+from common import obs_parsing
 
 Layers = tf.keras.layers
 # Sequential = tf.keras.layers.Sequential
@@ -62,175 +63,15 @@ class Scud(object):
                 print("scud ", self.name, 'output masked')
             return 0, 0, 3
 
-        try:
-            self.game_state = inputs
-        except IOError:
-            print("Cannot load Game State")
-          
-        self.full_map = self.game_state['gameMap']
-        self.rows = self.game_state['gameDetails']['mapHeight']
-        self.columns = self.game_state['gameDetails']['mapWidth']
-        
-        self.player_buildings = self.getPlayerBuildings()
-        self.opponent_buildings = self.getOpponentBuildings()
-        self.projectiles = self.getProjectiles()
-        
-        self.player_info = self.getPlayerInfo('A')
-        self.opponent_info = self.getPlayerInfo('B')
-        
-        self.round = self.game_state['gameDetails']['round']
-
-        # works for jar v1.1.0         
-        # self.prices = {"ATTACK":self.game_state['gameDetails']['buildingPrices']['ATTACK'],
-        #                "DEFENSE":self.game_state['gameDetails']['buildingPrices']['DEFENSE'],
-        #                "ENERGY":self.game_state['gameDetails']['buildingPrices']['ENERGY']}
-        # works for jar v1.1.2
-        self.prices = {"ATTACK": self.game_state['gameDetails']['buildingsStats']['ATTACK']['price'],
-                       "DEFENSE":self.game_state['gameDetails']['buildingsStats']['DEFENSE']['price'],
-                       "ENERGY":self.game_state['gameDetails']['buildingsStats']['ENERGY']['price']}
-
-        if self.debug and debug_verbose:
-            log("rows: " + str(self.rows))
-            log("columns: " + str(self.columns))
-            log("player_buildings: " + str(self.player_buildings))
-            log("opp_buildings: " + str(self.opponent_buildings))
-            log("projectiles: " + str(self.projectiles))
-            log("player_info: " + str(self.player_info))
-            log("opp_info: " + str(self.opponent_info))
-            log("Round: " + str(self.round))
-            log("Prices: " + str(self.prices))
-
-        # getting inputs
-        with tf.name_scope("shaping_inputs") as scope:
-            if self.debug:
-                log("Shaping inputs...")
-                s = Stopwatch()
-
-            pb = tf.one_hot(indices=self.player_buildings, depth=4, axis=-1, name="player_buildings") # 20x20x4
-            ob = tf.one_hot(indices=self.opponent_buildings, depth=4, axis=-1, name="opp_buildings") # 20x20x4
-            proj = tf.one_hot(indices=self.projectiles, depth=3, axis=-1, name='projectiles') # 20x40x3
-            k = proj.get_shape().as_list()
-            proj = tf.reshape(proj, [k[0], k[1] / 2, 6]) # 20x20x6. Only works for single misssiles
-
-            self.non_spatial = list(self.player_info.values())[1:] + list(self.opponent_info.values())[1:] + list(self.prices.values()) # 11x1
-            self.non_spatial = tf.cast(self.non_spatial, dtype=tf.float32)
-            # broadcasting the non-spatial features to the channel dimension
-            broadcast_stats = tf.tile(tf.expand_dims(tf.expand_dims(self.non_spatial, axis=0), axis=0), [k[0], k[1] / 2, 1]) # now 20x20x11
-
-            # adding all the inputs together via the channel dimension
-            self.spatial = tf.concat([pb, ob, proj, broadcast_stats], axis=-1) # 20x20x(14 + 11)
-            self.spatial = tf.expand_dims(self.spatial, axis=0)
-
-            if self.debug:
-                log("Finished shaping inputs. Took " + s.delta + "\nShape of inputs:" +  str(self.spatial.shape))
+        k, self.rows, self.columns = obs_parsing.parse_obs(inputs)
+        self.spatial = tf.expand_dims(k, axis=0)
 
         return self.generate_action()
-
-    def getPlayerInfo(self,playerType):
-        '''
-        Gets the player information of specified player type
-        '''
-        for i in range(len(self.game_state['players'])):
-            if self.game_state['players'][i]['playerType'] == playerType:
-                return self.game_state['players'][i]
-            else:
-                continue        
-        return None
-    
-    def getOpponentBuildings(self):
-        '''
-        Looks for all buildings, regardless if completed or not.
-        0 - Nothing
-        1 - Attack Unit
-        2 - Defense Unit
-        3 - Energy Unit
-        '''
-        opponent_buildings = []
-        
-        for row in range(0,self.rows):
-            buildings = []
-            for col in range(int(self.columns/2),self.columns):
-                if (len(self.full_map[row][col]['buildings']) == 0):
-                    buildings.append(0)
-                elif (self.full_map[row][col]['buildings'][0]['buildingType'] == 'ATTACK'):
-                    buildings.append(1)
-                elif (self.full_map[row][col]['buildings'][0]['buildingType'] == 'DEFENSE'):
-                    buildings.append(2)
-                elif (self.full_map[row][col]['buildings'][0]['buildingType'] == 'ENERGY'):
-                    buildings.append(3)
-                else:
-                    buildings.append(0)
-                
-            opponent_buildings.append(buildings)
-            
-        return opponent_buildings
-    
-    def getPlayerBuildings(self):
-        '''
-        Looks for all buildings, regardless if completed or not.
-        0 - Nothing
-        1 - Attack Unit
-        2 - Defense Unit
-        3 - Energy Unit
-        '''
-        player_buildings = []
-        
-        for row in range(0,self.rows):
-            buildings = []
-            for col in range(0,int(self.columns/2)):
-                if (len(self.full_map[row][col]['buildings']) == 0):
-                    buildings.append(0)
-                elif (self.full_map[row][col]['buildings'][0]['buildingType'] == 'ATTACK'):
-                    buildings.append(1)
-                elif (self.full_map[row][col]['buildings'][0]['buildingType'] == 'DEFENSE'):
-                    buildings.append(2)
-                elif (self.full_map[row][col]['buildings'][0]['buildingType'] == 'ENERGY'):
-                    buildings.append(3)
-                else:
-                    buildings.append(0)
-                
-            player_buildings.append(buildings)
-            
-        return player_buildings
-    
-    def getProjectiles(self):
-        '''
-        Find all projectiles on the map.
-        0 - Nothing there
-        1 - Projectile belongs to player
-        2 - Projectile belongs to opponent
-        '''
-        projectiles = []
-        
-        ## TODO: make this somehow capture multiple missiles
-        # that is controlled in the ...['missiles'][0] part, where 0
-        # could be many missiles. Possibly make multiple missiles be double the one-hot value?
-        # or just stack for channels for 2-missiles and 3-missiles?
-
-        for row in range(0,self.rows):
-            temp = []
-            for col in range(0,self.columns):
-                if (len(self.full_map[row][col]['missiles']) == 0):
-                    temp.append(0)
-                elif (self.full_map[row][col]['missiles'][0]['playerType'] == 'A'):
-                    temp.append(1)
-                elif (self.full_map[row][col]['missiles'][0]['playerType'] == 'B'):
-                    temp.append(2)
-                
-            projectiles.append(temp)
-            
-        return projectiles
         
     def get_flat_weights(self):
         ## Not actually flat weights atm
         weights = self.model.get_weights()
-        # self.weight_spec = []
-        # curw = []
-        # for w in weights:
-        #     self.weight_spec.append(w.shape)
-        #     curw.append(w.flatten())
 
-        # flatmo = tf.concat(curw, axis=0)
         return weights
 
     def set_flat_weights(self, params):
@@ -286,7 +127,6 @@ class Scud(object):
         #util.write_action(x,y,building)
         return x,y,building
 
-
     def add_spatial(self, net):
         '''
         Gets the spatial action of the network
@@ -315,7 +155,6 @@ class Scud(object):
             log("Finished spatial action inference. Took: " + s.delta)
         return logits
 
-
     def add_non_spatial(self, net):
         '''
         Infers the non-spatial action of the network
@@ -341,7 +180,6 @@ class Scud(object):
             log("Finished non-spatial action. Took: " + s.delta)
 
         return a0
-        
 
     def add_base(self):
         if self.debug:
@@ -378,7 +216,13 @@ class Scud(object):
         print(">> SCUD >> Saved model to file ", path)
     
     def load(self, filepath, savename):
-        path = os.path.join(filepath, str(savename) + '.h5')
+        if savename is None:
+            path = os.path.join(filepath, str(self.name) + '.h5')
+        else:
+            if savename.endswith('.h5') == False:
+                path = os.path.join(filepath, str(savename) + '.h5')
+            else:
+                path = os.path.join(filepath, str(savename))
         self.model = tf.keras.models.load_model(path)
         print(">> SCUD >> Model restored from file ", path)
 

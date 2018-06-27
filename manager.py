@@ -8,16 +8,17 @@ Author: Matthew Baas
 import os
 import sys
 import traceback
-import multiprocessing
 from common.subproc_env_manager import SubprocEnvManager
 from pyenv import Env
 from common.metrics import Stopwatch
 from scud2 import Scud
 import storm
 import time
+import runner
+from common import util
 
 # Config vars
-n_envs = 5
+n_envs = 4
 console_debug = False
 train = True
 
@@ -60,26 +61,42 @@ def main():
             env.close()
             sys.exit(0)
     else:
-        actions = no_act_vec
-        agents = [Scud(name=str(i), debug=False) for i in range(n_envs)]
-        refbot = Scud('ref', False)
-        env.reset()
-        ob = env.get_base_obs()
-        ref_act = None
-        for i in range(1):
-            ss = Stopwatch()
-            print(">> manager >> step {}, taking actions: {}".format(i, actions))
-            obs, rews = env.step(actions, ref_act) # obs is n_envs x 1
-            #print(rews)
-            #print("obs shape", obs.shape)
+        try:
+            actions = no_act_vec
+            agents = [Scud(name=str(i), debug=False) for i in range(n_envs)]
+            refbot = Scud('ref', False)
+            env.reset()
+            ob = util.get_initial_obs(n_envs)
+            #print("manager obs shape = ", ob.shape)
+            ref_act = None
+            for i in range(5):
+                ss = Stopwatch()
+                print(">> manager >> step {}, taking actions: {}".format(i, actions))
+                obs, rews = env.step(actions, ref_act) # obs is n_envs x 1
+                #print(rews)
+                #print("obs shape", obs.shape)
+                try:
+                    actions = [agent.step(obs[i][0]) for i, agent in enumerate(agents)]
+                    ref_act = [refbot.step(obs[i][1]) for i in range(len(agents))]
+                except TypeError as e:
+                    print("TypeError!!! ", e)
+                    break
+                print('>> manager >> just took step {}. Took: {}'.format(i, ss.delta))
+                time.sleep(0.03)
+
+            runner.run_battle(agents[0], refbot, env)
+
+        except Exception as err:
             try:
-                actions = [agent.step(obs[i][0]) for i, agent in enumerate(agents)]
-                ref_act = [refbot.step(obs[i][1]) for i in range(len(agents))]
-            except TypeError as e:
-                print("TypeError!!! ", e)
-                break
-            print('>> manager >> just took step {}. Took: {}'.format(i, ss.delta))
-            time.sleep(0.03)
+                exc_info = sys.exc_info()
+
+            finally:
+                traceback.print_exception(*exc_info)
+                del exc_info
+        finally:
+            print('>> manager >> closing env. Total runtime: ', sTime.delta)
+            env.close()
+            sys.exit(0)
     # gets all the variables of the model
     # all_variables = agents[0].model.get_weights()
     
