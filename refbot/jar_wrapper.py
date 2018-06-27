@@ -11,7 +11,7 @@ import sys
 from shutil import copy2
 import traceback
 
-debug = False
+debug = True
 
 def fileLog(msg):
     if debug:
@@ -24,7 +24,7 @@ def main():
         time.sleep(0.01)
         wrapper_out_filename = 'wrapper_out.txt'
 
-        this_dir = os.path.dirname(os.path.abspath(__file__)) # inside our running dir
+        this_dir = os.path.dirname(os.path.abspath(os.path.realpath(__file__))) # inside our running dir
         
         command_name = os.path.join(this_dir, 'command2.txt')
         proper_name = os.path.join(this_dir, 'command.txt')
