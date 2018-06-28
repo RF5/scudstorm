@@ -28,8 +28,11 @@ per_step_reward_penalty = -10
 
 binary_step_penalty = -0.01
 
+binary_win_reward = 1.0
+dense_win_reward = 100
+
 possible_reward_modes = ['dense', 'binary']
-reward_mode = possible_reward_modes[1]
+reward_mode = possible_reward_modes[0]
 
 class Env():
 
@@ -97,7 +100,7 @@ class Env():
 
             with open(os.path.join(self.refbot_path, 'mylog.txt'), 'a') as f:
                 f.write(str(time.time()) + "\t-->Wanting to do op:!!!\t" + str(ref_act) + '\n')
-
+        ep_info = {}
         #######################
         ## Writing actions
         x2, y2, build2 = ref_act
@@ -128,7 +131,7 @@ class Env():
                 print(">> PYENV ", self.name ," >>  Ended early")
             cntrl_obj = ControlObject('EARLY')
             tp = np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
-            return tp, np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
+            return tp, np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1), ep_info
 
         #######################
         ## Taking step
@@ -187,13 +190,22 @@ class Env():
                 k = np.asarray([obs,])
                 u = np.asarray([ref_obs,])
                 return_obs = np.concatenate([k, u], axis=-1)
+                if reward_mode == 'dense':
+                    win_reward = dense_win_reward
+                    lose_reward = -1 * dense_win_reward
+                else:
+                    win_reward = binary_win_reward
+                    lose_reward = -1 * binary_win_reward
                 if a_hp > b_hp:
                     # player a wins
-                    return return_obs, np.concatenate([np.asarray([1.0,]), np.asarray([-1.0,])], axis=-1)
+                    ep_info['winner'] = 'A'
+                    return return_obs, np.concatenate([np.asarray([win_reward,]), np.asarray([lose_reward,])], axis=-1), ep_info
                 elif a_hp < b_hp:
-                    return return_obs, np.concatenate([np.asarray([-1.0,]), np.asarray([1.0,])], axis=-1)
+                    ep_info['winner'] = 'B'
+                    return return_obs, np.concatenate([np.asarray([lose_reward,]), np.asarray([win_reward,])], axis=-1), ep_info
                 else:
-                    return return_obs, np.concatenate([np.asarray([0.0,]), np.asarray([0.0,])], axis=-1)
+                    ep_info['winner'] = 'TIE'
+                    return return_obs, np.concatenate([np.asarray([0.0,]), np.asarray([0.0,])], axis=-1), ep_info
 
             if stopw.deltaT() > 3:
                 # we have waited more than 3s, game clearly ended
@@ -222,7 +234,7 @@ class Env():
         if failure == True:
             cntrl_obj = ControlObject('FAILURE')
             tp = np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
-            return tp, np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1)
+            return tp, np.concatenate([np.asarray([cntrl_obj,]), np.asarray([cntrl_obj,])], axis=-1), ep_info
 
         # print('-----A------------->', obs['players'][0]['health'])
         # print('-----B------------->', obs['players'][1]['health'])
@@ -247,9 +259,9 @@ class Env():
         u = np.asarray([ref_obs,])
         return_obs = np.concatenate([k, u], axis=-1)
         if reward_mode == 'dense':
-            return return_obs, np.concatenate([np.asarray([reward,]), np.asarray([ref_reward,])], axis=-1)
+            return return_obs, np.concatenate([np.asarray([reward,]), np.asarray([ref_reward,])], axis=-1), ep_info
         elif reward_mode == 'binary':
-            return return_obs, np.concatenate([np.asarray([binary_step_penalty,]), np.asarray([binary_step_penalty,])], axis=-1)
+            return return_obs, np.concatenate([np.asarray([binary_step_penalty,]), np.asarray([binary_step_penalty,])], axis=-1), ep_info
 
 
     def load_state(self):
@@ -269,7 +281,8 @@ class Env():
                 break
             except json.decoder.JSONDecodeError as e:
                 k = None
-                print(">> PYENV >> Failed to decode json state! Got error ", e)
+                if self.debug:
+                    print(">> PYENV >> Failed to decode json state! Got error ", e)
                 time.sleep(0.01)
 
         return k
@@ -329,16 +342,23 @@ class Env():
         ## Trying to kill jar wrapper of ref env
         refpid_file = os.path.join(self.refbot_path, 'wrapper_pid.txt')
         if os.path.isfile(refpid_file):
-            with open(refpid_file, 'r') as f:
-                wrapper_pid2 = int(f.read())
-                if wrapper_pid2 == 0:
-                    return None
-                else:
+            flag = False
+            while flag == False:
+                with open(refpid_file, 'r') as f:
                     try:
-                        os.kill(wrapper_pid2, signal.SIGTERM)
-                    except (PermissionError, ProcessLookupError) as e:
-                        if self.debug:
-                            print(">> PYENV ", self.name, " >> Attempted to close refbot wrapper pid ", wrapper_pid2, " but got ERROR ", e)
+                        wrapper_pid2 = int(f.read())
+                    except ValueError:
+                        continue
+                    if wrapper_pid2 == 0:
+                        flag = True
+                        return None
+                    else:
+                        flag = True
+                        try:
+                            os.kill(wrapper_pid2, signal.SIGTERM)
+                        except (PermissionError, ProcessLookupError) as e:
+                            if self.debug:
+                                print(">> PYENV ", self.name, " >> Attempted to close refbot wrapper pid ", wrapper_pid2, " but got ERROR ", e)
         else:
             if self.debug:
                 print(">> PYENV >> Attempted to close refbot wrapper pid but the wrapper pid file was not found ")
@@ -450,7 +470,8 @@ class RefEnv():
                 break
             except json.decoder.JSONDecodeError as e:
                 k = None
-                print(">> REF ENV >> Failed to decode json state! Got error ", e)
+                if self.debug:
+                    print(">> REF ENV >> Failed to decode json state! Got error ", e)
                 time.sleep(0.01)
 
         return k

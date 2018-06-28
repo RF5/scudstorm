@@ -18,7 +18,7 @@ import runner
 from common import util
 
 # Config vars
-n_envs = 4
+n_envs = 3
 console_debug = False
 train = True
 

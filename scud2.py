@@ -211,7 +211,7 @@ class Scud(object):
                 path = os.path.join(filepath, str(savename) + '.h5')
             else:
                 path = os.path.join(filepath, str(savename))
-        os.makedirs(path, exist_ok=True)
+        os.makedirs(filepath, exist_ok=True)
         self.model.save(path, include_optimizer=False)
         print(">> SCUD >> Saved model to file ", path)
     

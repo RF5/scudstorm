@@ -18,10 +18,9 @@ summary = tf.contrib.summary
 
 ##############################
 ###### TRAINING CONFIG #######
-n_steps = 20
-n_generations = 100#100
+n_generations = 1#100
 trunc_size = 5#4
-scoring_method = 'binary' # Possibilities: 'dense' and 'binary'
+scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
 
 ## Refbot/opponent upgrading config
 replace_refbot_every = 10
@@ -31,13 +30,14 @@ refbot_queue_length = 3
 # [elite_additional_episodes] episodes (averaging rewards over them) to find the
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
-elite_additional_episodes = 5
-n_elite_in_royale = 5
+elite_additional_episodes = 1#4
+n_elite_in_royale = 3
 
-max_episode_length = 50#35
-gamma = 0.99 # reward decay
-n_population = 10#12#100
-sigma = 0.002 # guassian std scaling
+max_episode_length = 90#90
+gamma = 0.99 # reward decay. 
+gamma_func = lambda x : 0.03*x + 0.96
+n_population = 5#12#100
+sigma = 0.0022 # guassian std scaling
 
 scud_debug = False
 verbose_training = False
@@ -53,7 +53,7 @@ def train(env, n_envs, no_op_vec):
     early_episodes = 0
 
     ## Setting up logs
-    writer = summary.create_file_writer(util.get_logdir('testBIG'), flush_millis=10000)
+    writer = summary.create_file_writer(util.get_logdir('test28th'), flush_millis=10000)
     writer.set_as_default()
     global_step = tf.train.get_or_create_global_step()
 
@@ -78,6 +78,11 @@ def train(env, n_envs, no_op_vec):
     #partition_stopwatch = Stopwatch()
     for g in range(n_generations):
         #####################
+        ## Hyperparameter annealing
+        gamma = gamma_func((g+1)/n_generations)
+        print(gamma)
+
+        #####################
         ## GA Algorithm
         for i in range(n_population):
             if g == 0:
@@ -92,9 +97,9 @@ def train(env, n_envs, no_op_vec):
         next_generation = tmp
         
         # evaluate fitness on each agent in population
-        agents, additional_steps, early_eps, failed_eps = evaluate_fitness(env, agents, refbot, debug=False)
-        early_episodes += early_eps
-        failed_episodes += failed_eps
+        agents, additional_steps, rollout_info = evaluate_fitness(env, agents, refbot, debug=False)
+        early_episodes += rollout_info['early_eps']
+        failed_episodes += rollout_info['failed_eps']
         total_steps += additional_steps
         # sort them based on final discounted reward
         agents = sorted(agents, key = lambda agent : agent.fitness_score, reverse=True)
@@ -110,6 +115,11 @@ def train(env, n_envs, no_op_vec):
             summary.scalar('rewards/min', agents[-1].fitness_score)
             summary.scalar('rewards/var', np.var(sc_vec))
             summary.scalar('rewards/truc_mean', np.mean(sc_vec[:trunc_size]))
+            summary.scalar('hyperparameters/gamma', gamma)
+
+            summary.scalar('main_rollout/agentWins', rollout_info['agentWins'])
+            summary.scalar('main_rollout/refbotWins', rollout_info['refbotWins'])
+            summary.scalar('main_rollout/ties', rollout_info['ties'])
         
         for a in agents[:trunc_size]:
             print(a.name, " with fitness score: ", a.fitness_score)
@@ -122,10 +132,10 @@ def train(env, n_envs, no_op_vec):
             elite_candidates = set(agents[0:n_elite_in_royale-1]) | set([elite,])
         # finding next elite by battling proposed elite candidates for some additional rounds
         print("Evaluating elite agent...")
-        elo_ags, additional_steps, early_eps, failed_eps = evaluate_fitness(env, elite_candidates, refbot, runs=elite_additional_episodes)
+        elo_ags, additional_steps, rollout_info = evaluate_fitness(env, elite_candidates, refbot, runs=elite_additional_episodes)
         total_steps += additional_steps
-        early_episodes += early_eps
-        failed_episodes += failed_eps
+        early_episodes += rollout_info['early_eps']
+        failed_episodes += rollout_info['failed_eps']
 
         elo_ags = sorted(elo_ags, key = lambda agent : agent.fitness_score, reverse=True)
         elite = elo_ags[0]
@@ -155,6 +165,10 @@ def train(env, n_envs, no_op_vec):
             summary.scalar('ep_info/early_eps', early_episodes)
             early_episodes = 0
 
+            summary.scalar('elite_rollout/agentWins', rollout_info['agentWins'])
+            summary.scalar('elite_rollout/refbotWins', rollout_info['refbotWins'])
+            summary.scalar('elite_rollout/ties', rollout_info['ties'])
+
         #################################
         ## Replacing reference bot
         if g % replace_refbot_every == 0 and g != 0:
@@ -170,6 +184,8 @@ def train(env, n_envs, no_op_vec):
 
         if g % save_elite_every == 0 and g != 0:
             elite.save(util.get_savedir('checkpoints'), 'gen' + str(g) + 'elite')
+            for refAgent in refbot_queue:
+                refAgent.save(util.get_savedir('refbots'), 'gen' + str(g) + str(refAgent.name))
 
         global_step.assign_add(1)
 
@@ -212,8 +228,7 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
     print(">> ROLLOUTS >> Running rollout wave with queue length  ", init_length)
     pbar = metrics.ProgressBar(init_length)
     interior_steps = 0
-    early_eps = 0
-    failed_eps = 0
+    rollout_info = {'early_eps': 0, 'failed_eps': 0, 'agentWins': 0, 'refbotWins': 0, 'ties': 0}
 
     while len(queue) > 0:
         # KEEP THIS THERE OTHERWISE SHIT BREAKS
@@ -255,7 +270,8 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
             if debug:
                 print(">> storm >> taking actions: ", actions, ' and ref actions ', ref_actions)
 
-            obs, rews = env.step(actions, p2_actions=ref_actions)
+            obs, rews, ep_infos = env.step(actions, p2_actions=ref_actions)
+
             interior_steps += n_envs
             ## TODO: loop through obs and check which one is a ControlObj, and stop processing the agents for the rest of that episode
             failure = False
@@ -264,15 +280,24 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
                     if rews[i][0].code == "EARLY":
                         a.mask_output = True
                         if step == max_episode_length-1:
-                            early_eps += 1
+                            rollout_info['early_eps'] += 1
 
                     elif rews[i][0].code == "FAILURE":
                         # redo this whole fucking batch
-                        failed_eps += 1
+                        rollout_info['failed_eps'] += 1
                         failure = True
                         break
                 else:
                     a.fitness_score = rews[i][0] + gamma*a.fitness_score
+
+                if 'winner' in ep_infos[i].keys():
+                    if ep_infos[i]['winner'] == 'A':
+                        rollout_info['agentWins'] += 1
+                    elif ep_infos[i]['winner'] == 'B':
+                        rollout_info['refbotWins'] += 1
+                    else:
+                        rollout_info['ties'] += 1
+
 
 
             if failure:
@@ -295,4 +320,4 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
 
     pbar.close()
 
-    return agents, interior_steps, early_eps, failed_eps
+    return agents, interior_steps, rollout_info
