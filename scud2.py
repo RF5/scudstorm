@@ -41,6 +41,7 @@ class Scud(object):
         self.debug = debug
         self.fitness_score = 0
         self.fitness_averaging_list = []
+        self.refbot_position = -1
         self.mask_output = False
         if self.debug:
             log("Running conv2d on " + device)

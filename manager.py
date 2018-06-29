@@ -8,6 +8,7 @@ Author: Matthew Baas
 import os
 import sys
 import traceback
+import argparse
 from common.subproc_env_manager import SubprocEnvManager
 from pyenv import Env
 from common.metrics import Stopwatch
@@ -18,13 +19,23 @@ import runner
 from common import util
 
 # Config vars
-n_envs = 3
+n_envs = 5
 console_debug = False
 train = True
+mode_options = ['train', 'resume', 'test']
 
-def main():
+def main(mode):
     sTime = Stopwatch()
     env_names = ['env' + str(i) for i in range(n_envs)]
+
+    if mode == 'test':
+        train = False
+    else:
+        train = True
+    if mode == 'resume':
+        resume_training = True
+    else: 
+        resume_training = False
 
     def make_env(name):
         def env_fn():
@@ -48,7 +59,7 @@ def main():
     # obs = np.zeros() # some initial state
     if train:
         try:
-            storm.train(env, n_envs, no_act_vec)
+            storm.train(env, n_envs, no_act_vec, resume_training)
         except Exception as err:
             try:
                 exc_info = sys.exc_info()
@@ -105,4 +116,7 @@ def main():
     sys.exit(0)
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Process input arguments')
+    parser.add_argument("--mode", type=str, choices=mode_options, default='train', help="luno key id")
+    args = parser.parse_args()
+    main(args.mode)

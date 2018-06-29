@@ -18,7 +18,7 @@ summary = tf.contrib.summary
 
 ##############################
 ###### TRAINING CONFIG #######
-n_generations = 1#100
+n_generations = 50#100
 trunc_size = 5#4
 scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
 
@@ -30,13 +30,13 @@ refbot_queue_length = 3
 # [elite_additional_episodes] episodes (averaging rewards over them) to find the
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
-elite_additional_episodes = 1#4
-n_elite_in_royale = 3
+elite_additional_episodes = 4#4
+n_elite_in_royale = 5
 
-max_episode_length = 90#90
+max_episode_length = 80#90
 gamma = 0.99 # reward decay. 
 gamma_func = lambda x : 0.03*x + 0.96
-n_population = 5#12#100
+n_population = 80#100
 sigma = 0.0022 # guassian std scaling
 
 scud_debug = False
@@ -45,15 +45,15 @@ elite_score_moving_avg_periods = 4
 elite_savename = 'elite'
 save_elite_every = 10
 
-def train(env, n_envs, no_op_vec):
+def train(env, n_envs, no_op_vec, resume_trianing):
     print(str('='*50) + '\n' + 'Initializing agents\n' + str('='*50) )
     ##############################
     ## Summary buckets
-    failed_episodes = 0
-    early_episodes = 0
+    #failed_episodes = 0
+    #early_episodes = 0
 
     ## Setting up logs
-    writer = summary.create_file_writer(util.get_logdir('test28th'), flush_millis=10000)
+    writer = summary.create_file_writer(util.get_logdir('test29th'), flush_millis=10000)
     writer.set_as_default()
     global_step = tf.train.get_or_create_global_step()
 
@@ -65,11 +65,31 @@ def train(env, n_envs, no_op_vec):
     next_generation = [Scud(name=str(i) + 'next', debug=scud_debug) for i in range(n_population)]
 
     refbot_queue = [Scud(name='refbot' + str(i), debug=scud_debug) for i in range(refbot_queue_length)]
+    for i, bot in enumerate(refbot_queue):
+        bot.refbot_position = i
     refbot = refbot_queue[0]
 
     ## DOES NOT WORK WITH EAGER EXECUTION
     # with summary.always_record_summaries():
     #     summary.graph(agents[0].model.graph)
+
+    ########################################
+    ## Restoring from last training session
+    if resume_trianing:
+        print(str('='*50) + '\n' + '>> STORM >> Resuming training.\n' + str('='*50))
+        checkpoint_names = os.listdir(util.get_savedir('checkpoints'))
+        checkpoint_names = sorted(checkpoint_names, reverse=True)
+
+        elite = agents[0]
+        elite.load(util.get_savedir('checkpoints'), checkpoint_names[0])
+
+        refbot_names = os.listdir(util.get_savedir('refbots'))
+        refbot_names = sorted(refbot_names, reverse=False)
+        refbot_q_names = refbot_names[-refbot_queue_length:]
+        for i in range(refbot_queue_length):
+            refbot_queue[i].load(util.get_savedir('refbots'), refbot_q_names[i])
+            refbot_queue[i].refbot_position = i
+        print(">> STORM >> Successfully restored from last checkpoints")
 
     print(str('='*50) + '\n' + 'Beginning training\n' + str('='*50) )
     s = Stopwatch()
@@ -80,7 +100,6 @@ def train(env, n_envs, no_op_vec):
         #####################
         ## Hyperparameter annealing
         gamma = gamma_func((g+1)/n_generations)
-        print(gamma)
 
         #####################
         ## GA Algorithm
@@ -98,8 +117,8 @@ def train(env, n_envs, no_op_vec):
         
         # evaluate fitness on each agent in population
         agents, additional_steps, rollout_info = evaluate_fitness(env, agents, refbot, debug=False)
-        early_episodes += rollout_info['early_eps']
-        failed_episodes += rollout_info['failed_eps']
+        #early_episodes += rollout_info['early_eps']
+        #failed_episodes += rollout_info['failed_eps']
         total_steps += additional_steps
         # sort them based on final discounted reward
         agents = sorted(agents, key = lambda agent : agent.fitness_score, reverse=True)
@@ -120,6 +139,8 @@ def train(env, n_envs, no_op_vec):
             summary.scalar('main_rollout/agentWins', rollout_info['agentWins'])
             summary.scalar('main_rollout/refbotWins', rollout_info['refbotWins'])
             summary.scalar('main_rollout/ties', rollout_info['ties'])
+            summary.scalar('main_rollout/early_eps', rollout_info['early_eps'])
+            summary.scalar('main_rollout/failed_eps', rollout_info['failed_eps'])
         
         for a in agents[:trunc_size]:
             print(a.name, " with fitness score: ", a.fitness_score)
@@ -127,15 +148,18 @@ def train(env, n_envs, no_op_vec):
         #partition_stopwatch.lap('refbot replace + summaries')
         # setup next generation parents / elite agents
         if g == 0:
-            elite_candidates = set(agents[0:n_elite_in_royale])
+            if resume_trianing == False:
+                elite_candidates = set(agents[0:n_elite_in_royale])
+            else:
+                elite_candidates = set(agents[0:n_elite_in_royale-1]) | set([elite,])
         else:
             elite_candidates = set(agents[0:n_elite_in_royale-1]) | set([elite,])
         # finding next elite by battling proposed elite candidates for some additional rounds
-        print("Evaluating elite agent...")
+        #print("Evaluating elite agent...")
         elo_ags, additional_steps, rollout_info = evaluate_fitness(env, elite_candidates, refbot, runs=elite_additional_episodes)
         total_steps += additional_steps
-        early_episodes += rollout_info['early_eps']
-        failed_episodes += rollout_info['failed_eps']
+        #early_episodes += rollout_info['early_eps']
+        #failed_episodes += rollout_info['failed_eps']
 
         elo_ags = sorted(elo_ags, key = lambda agent : agent.fitness_score, reverse=True)
         elite = elo_ags[0]
@@ -160,14 +184,16 @@ def train(env, n_envs, no_op_vec):
             summary.scalar('time/single_gen_time', s.deltaT())
             summary.scalar('time/total_game_steps', total_steps)
             
-            summary.scalar('ep_info/failed_eps', failed_episodes)
-            failed_episodes = 0
-            summary.scalar('ep_info/early_eps', early_episodes)
-            early_episodes = 0
+            # summary.scalar('ep_info/failed_eps', failed_episodes)
+            # failed_episodes = 0
+            # summary.scalar('ep_info/early_eps', early_episodes)
+            # early_episodes = 0
 
             summary.scalar('elite_rollout/agentWins', rollout_info['agentWins'])
             summary.scalar('elite_rollout/refbotWins', rollout_info['refbotWins'])
             summary.scalar('elite_rollout/ties', rollout_info['ties'])
+            summary.scalar('elite_rollout/early_eps', rollout_info['early_eps'])
+            summary.scalar('elite_rollout/failed_eps', rollout_info['failed_eps'])
 
         #################################
         ## Replacing reference bot
@@ -182,10 +208,13 @@ def train(env, n_envs, no_op_vec):
             refbot_queue.append(toback)
             refbot = refbot_queue[0]
 
+            for i, bot in enumerate(refbot_queue):
+                bot.refbot_position = i
+
         if g % save_elite_every == 0 and g != 0:
             elite.save(util.get_savedir('checkpoints'), 'gen' + str(g) + 'elite')
             for refAgent in refbot_queue:
-                refAgent.save(util.get_savedir('refbots'), 'gen' + str(g) + str(refAgent.name))
+                refAgent.save(util.get_savedir('refbots'), 'gen' + str(g) + str(refAgent.refbot_position))
 
         global_step.assign_add(1)
 
