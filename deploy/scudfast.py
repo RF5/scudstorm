@@ -30,6 +30,8 @@ reverse_action_map = {
     action_map['tesla']: 'tesla',
     action_map['no_op']: 'no_op'}
 
+debug = True
+
 class ScudFast:
     
     def __init__(self,state_location):
@@ -63,7 +65,6 @@ class ScudFast:
 
         path = self.get_savepath()
         self.model = tf.keras.models.load_model(path)
-        print("---------------> LOADING")
         self.form_input()
 
         return None
@@ -71,8 +72,8 @@ class ScudFast:
     def form_input(self):
         with tf.name_scope("shaping_inputs") as scope:
 
-            pb = tf.one_hot(indices=self.player_buildings, depth=4, axis=-1, name="player_buildings") # 20x20x4
-            ob = tf.one_hot(indices=self.opponent_buildings, depth=4, axis=-1, name="opp_buildings") # 20x20x4
+            pb = tf.one_hot(indices=self.player_buildings, depth=5, axis=-1, name="player_buildings") # 20x20x5
+            ob = tf.one_hot(indices=self.opponent_buildings, depth=5, axis=-1, name="opp_buildings") # 20x20x5
             proj = tf.one_hot(indices=self.projectiles, depth=3, axis=-1, name='projectiles') # 20x40x3
             k = proj.get_shape().as_list()
             proj = tf.reshape(proj, [int(k[0]), int(k[1] / 2), 6]) # 20x20x6. Only works for single misssiles
@@ -83,7 +84,7 @@ class ScudFast:
             broadcast_stats = tf.tile(tf.expand_dims(tf.expand_dims(self.non_spatial, axis=0), axis=0), [int(k[0]), int(k[1] / 2), 1]) # now 20x20x11
 
             # adding all the inputs together via the channel dimension
-            self.spatial = tf.concat([pb, ob, proj, broadcast_stats], axis=-1) # 20x20x(14 + 11)
+            self.spatial = tf.concat([pb, ob, proj, broadcast_stats], axis=-1) # 20x20x(16 + 11)
             self.spatial = tf.expand_dims(self.spatial, axis=0)
 
     def get_savepath(self):
@@ -127,6 +128,8 @@ class ScudFast:
                     buildings.append(2)
                 elif (self.full_map[row][col]['buildings'][0]['buildingType'] == 'ENERGY'):
                     buildings.append(3)
+                elif (self.full_map[row][col]['buildings'][0]['buildingType'] == 'TESLA'):
+                    buildings.append(4)
                 else:
                     buildings.append(0)
                 
@@ -155,6 +158,8 @@ class ScudFast:
                     buildings.append(2)
                 elif (self.full_map[row][col]['buildings'][0]['buildingType'] == 'ENERGY'):
                     buildings.append(3)
+                elif (self.full_map[row][col]['buildings'][0]['buildingType'] == 'TESLA'):
+                    buildings.append(4)
                 else:
                     buildings.append(0)
                 
@@ -225,6 +230,9 @@ class ScudFast:
         '''
         command in form : x,y,building_type
         '''
+        if debug:
+            print("Action: X: {} Y: {} BUILDING: {}".format(x, y, reverse_action_map[building]))
+
         outfl = open('command.txt','w')
 
         if reverse_action_map[building] == 'no_op':
