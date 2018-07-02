@@ -14,6 +14,7 @@ import tensorflow as tf
 from common.metrics import log, Stopwatch
 import numpy as np
 import common.util as util
+import constants
 from common import obs_parsing
 
 Layers = tf.keras.layers
@@ -24,11 +25,11 @@ Layers = tf.keras.layers
 '''
 Internal agent config
 '''
-n_base_actions = 4 # number of base actions -- 0=NO OP, 1=DEFENSE, 2=OFFENSE, 3=ENERGY...
 debug_verbose = False
 endpoints = {}
 device = 'gpu'
 tf.enable_eager_execution()
+input_channels = 27
 # let an example map size be 20x40, so each player's building area is 20x20
     
 class Scud(object):
@@ -46,7 +47,7 @@ class Scud(object):
         if self.debug:
             log("Running conv2d on " + device)
         with tf.device('/' + device + ':0'):
-            self.input = Layers.Input(shape=(4, 4, 25))
+            self.input = Layers.Input(shape=(int(constants.map_width/2), constants.map_height, input_channels))
 
             self.base = self.add_base()
             
@@ -65,7 +66,7 @@ class Scud(object):
             return 0, 0, 3
 
         k, self.rows, self.columns = obs_parsing.parse_obs(inputs)
-        self.spatial = tf.expand_dims(k, axis=0)
+        self.spatial = tf.expand_dims(k, axis=0) # now should have shape (1, 8, 8, 25)
 
         return self.generate_action()
         
@@ -167,7 +168,7 @@ class Scud(object):
         non_spatial = Layers.Dense(256,
                     activation=tf.nn.relu,
                     name="non_spatial")(flatten)
-        a0 = Layers.Dense(n_base_actions,
+        a0 = Layers.Dense(constants.n_base_actions,
                     name="a0")(non_spatial)
 
         # TODO: possibly softmax this and then transform it into an int from 0 - 4

@@ -34,8 +34,8 @@ def parse_obs(game_state):
             print("Shaping inputs...")
             s = Stopwatch()
 
-        pb = tf.one_hot(indices=player_buildings, depth=4, axis=-1, name="player_buildings") # 20x20x4
-        ob = tf.one_hot(indices=opponent_buildings, depth=4, axis=-1, name="opp_buildings") # 20x20x4
+        pb = tf.one_hot(indices=player_buildings, depth=5, axis=-1, name="player_buildings") # 20x20x5
+        ob = tf.one_hot(indices=opponent_buildings, depth=5, axis=-1, name="opp_buildings") # 20x20x5
         proj = tf.one_hot(indices=projectiles, depth=3, axis=-1, name='projectiles') # 20x40x3
         k = proj.get_shape().as_list()
         proj = tf.reshape(proj, [int(k[0]), int(k[1] / 2), 6]) # 20x20x6. Only works for single misssiles
@@ -46,7 +46,7 @@ def parse_obs(game_state):
         broadcast_stats = tf.tile(tf.expand_dims(tf.expand_dims(non_spatial, axis=0), axis=0), [int(k[0]), int(k[1] / 2), 1]) # now 20x20x11
 
         # adding all the inputs together via the channel dimension
-        spatial = tf.concat([pb, ob, proj, broadcast_stats], axis=-1) # 20x20x(14 + 11)
+        spatial = tf.concat([pb, ob, proj, broadcast_stats], axis=-1) # 20x20x(16 + 11)
         
 
         if debug:
@@ -86,6 +86,8 @@ def getOpponentBuildings(full_map, rows, columns):
                 buildings.append(2)
             elif (full_map[row][col]['buildings'][0]['buildingType'] == 'ENERGY'):
                 buildings.append(3)
+            elif (full_map[row][col]['buildings'][0]['buildingType'] == 'TESLA'):
+                buildings.append(4)
             else:
                 buildings.append(0)
             
@@ -114,6 +116,8 @@ def getPlayerBuildings(full_map, rows, columns):
                 buildings.append(2)
             elif (full_map[row][col]['buildings'][0]['buildingType'] == 'ENERGY'):
                 buildings.append(3)
+            elif (full_map[row][col]['buildings'][0]['buildingType'] == 'TESLA'):
+                buildings.append(4)
             else:
                 buildings.append(0)
             

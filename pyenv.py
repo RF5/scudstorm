@@ -18,8 +18,8 @@ from common.util import write_prep_action, ControlObject
 from common.metrics import Stopwatch
 
 # Config variables
-jar_name = 'tower-defence-runner-1.1.2.jar'
-config_name = 'config.json'
+jar_name = 'tower-defence-runner-2.0.3.jar'
+config_name = 'game-runner-config.json'#'config.json'
 game_config_name = 'game-config.properties'
 wrapper_out_filename = 'wrapper_out.txt'
 state_name = 'state.json'

@@ -75,7 +75,7 @@ def fight(env, agent1, agent2, n_fights, max_steps, debug=False):
             if debug:
                 print(">> storm >> taking actions: ", actions, ' and ref actions ', ref_actions)
 
-            obs, rews = env.step(actions, p2_actions=ref_actions)
+            obs, rews, ep_infos = env.step(actions, p2_actions=ref_actions)
             interior_steps += n_envs
             ## TODO: loop through obs and check which one is a ControlObj, and stop processing the agents for the rest of that episode
             failure = False
@@ -93,12 +93,17 @@ def fight(env, agent1, agent2, n_fights, max_steps, debug=False):
                         break
                 else:
                     #print(rews)
-                    if rews[i][0] >= 0.95:
-                        agent1Wins += 1
-                    elif rews[i][1] >= 0.95:
-                        agent2Wins += 1
-
+                    # if rews[i][0] >= 0.95:
+                    #     agent1Wins += 1
+                    # elif rews[i][1] >= 0.95:
+                    #     agent2Wins += 1
+                    pass
                     #a.fitness_score = rews[i][0] + gamma*a.fitness_score
+                if 'winner' in ep_infos[i].keys():
+                    if ep_infos[i]['winner'] == 'A':
+                        agent1Wins += 1
+                    elif ep_infos[i]['winner'] == 'B':
+                        agent2Wins += 1
 
             if failure:
                 print("Failure detected. Redoing last batch... (len Q before = ", len(queue), ' ; after = ')
@@ -120,10 +125,13 @@ def fight(env, agent1, agent2, n_fights, max_steps, debug=False):
     return agent1Wins, agent2Wins, early_eps, failed_eps
 
 def run_battle(a1, a2, env):
-    a1.load(util.get_savedir('checkpoints'), 'gen10elite.h5')
-    a2.load(util.get_savedir('checkpoints'), 'gen20elite.h5')
+    a1.save(util.get_savedir('memes'), 'a1.h5')
+    a2.save(util.get_savedir('memes'), 'a2.h5')
 
-    agent1Wins, agent2Wins, early_eps, failed_eps = fight(env, a1, a2, n_fights=4, max_steps=100, debug=False)
+    a1.load(util.get_savedir('memes'), 'a1.h5')
+    a2.load(util.get_savedir('memes'), 'a2.h5')
+
+    agent1Wins, agent2Wins, early_eps, failed_eps = fight(env, a1, a2, n_fights=2, max_steps=70, debug=False)
     print("Agent1Wins: ", agent1Wins)
     print("Agent2Wins: ", agent2Wins)
     print("EarlyEps: ", early_eps)

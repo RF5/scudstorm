@@ -53,7 +53,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     #early_episodes = 0
 
     ## Setting up logs
-    writer = summary.create_file_writer(util.get_logdir('test29th'), flush_millis=10000)
+    writer = summary.create_file_writer(util.get_logdir('test2nd'), flush_millis=10000)
     writer.set_as_default()
     global_step = tf.train.get_or_create_global_step()
 
@@ -117,9 +117,8 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         
         # evaluate fitness on each agent in population
         agents, additional_steps, rollout_info = evaluate_fitness(env, agents, refbot, debug=False)
-        #early_episodes += rollout_info['early_eps']
-        #failed_episodes += rollout_info['failed_eps']
         total_steps += additional_steps
+
         # sort them based on final discounted reward
         agents = sorted(agents, key = lambda agent : agent.fitness_score, reverse=True)
 
@@ -145,6 +144,9 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         for a in agents[:trunc_size]:
             print(a.name, " with fitness score: ", a.fitness_score)
 
+        ############################################
+        ## Evaluating elite candidates to find elite
+
         #partition_stopwatch.lap('refbot replace + summaries')
         # setup next generation parents / elite agents
         if g == 0:
@@ -158,9 +160,6 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         #print("Evaluating elite agent...")
         elo_ags, additional_steps, rollout_info = evaluate_fitness(env, elite_candidates, refbot, runs=elite_additional_episodes)
         total_steps += additional_steps
-        #early_episodes += rollout_info['early_eps']
-        #failed_episodes += rollout_info['failed_eps']
-
         elo_ags = sorted(elo_ags, key = lambda agent : agent.fitness_score, reverse=True)
         elite = elo_ags[0]
 
@@ -175,6 +174,8 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         for i, a in enumerate(elo_ags):
             print('Elite stats: pos', i, a.name, " with fitness score: ", a.fitness_score)
 
+        ############################
+        ## Summary information 2
         with summary.always_record_summaries(): 
             elite_moving_average.push(elite.fitness_score)
             summary.scalar('rewards/elite_moving_average', elite_moving_average.value())
@@ -183,11 +184,6 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             summary.scalar('time/wall_clock_time', total_s.deltaT())
             summary.scalar('time/single_gen_time', s.deltaT())
             summary.scalar('time/total_game_steps', total_steps)
-            
-            # summary.scalar('ep_info/failed_eps', failed_episodes)
-            # failed_episodes = 0
-            # summary.scalar('ep_info/early_eps', early_episodes)
-            # early_episodes = 0
 
             summary.scalar('elite_rollout/agentWins', rollout_info['agentWins'])
             summary.scalar('elite_rollout/refbotWins', rollout_info['refbotWins'])
@@ -211,16 +207,24 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             for i, bot in enumerate(refbot_queue):
                 bot.refbot_position = i
 
+        #################################
+        ## Saving agents periodically
         if g % save_elite_every == 0 and g != 0:
             elite.save(util.get_savedir('checkpoints'), 'gen' + str(g) + 'elite')
             for refAgent in refbot_queue:
                 refAgent.save(util.get_savedir('refbots'), 'gen' + str(g) + str(refAgent.refbot_position))
+
+            for i, truncAgent in enumerate(agents[:trunc_size]):
+                truncAgent.save(util.get_savedir('truncs'), 'gen' + str(g) + 'agent' + str(i))
 
         global_step.assign_add(1)
 
         print(str('='*50) + '\n' + 'Generation ' + str(g) + '. Took  ' + s.delta +  '(total: ' + total_s.delta + ')\n' + str('='*50) )
         s.reset()
         #partition_stopwatch.lap('summaries and updates')
+
+    ###############################
+    ## Shutdown behavior
 
     #print("PARTITION STOPWATCH RESULTS:")
     #partition_stopwatch.print_results()

@@ -11,7 +11,24 @@ import os
 import tensorflow as tf
 
 tf.enable_eager_execution()
-action_names = ['attack', 'defense', 'energy', 'no_op']
+
+##########################
+## Game config stuff
+map_width = 16
+rows = map_width
+
+map_height = 8
+columns = map_height
+
+action_map = {'defence': 0, 'attack': 1, 'energy': 2, 'deconstruct': 3, 'tesla': 4, 'no_op': 5}
+
+reverse_action_map = {
+    action_map['defence'] : 'defence', 
+    action_map['attack']: 'attack', 
+    action_map['energy']: 'energy',
+    action_map['deconstruct']: 'deconstruct',
+    action_map['tesla']: 'tesla',
+    action_map['no_op']: 'no_op'}
 
 class ScudFast:
     
@@ -210,7 +227,7 @@ class ScudFast:
         '''
         outfl = open('command.txt','w')
 
-        if action_names[building] == 'no_op':
+        if reverse_action_map[building] == 'no_op':
             outfl.write("")
         else:
             outfl.write(','.join([str(x),str(y),str(building)]))

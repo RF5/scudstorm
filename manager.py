@@ -17,6 +17,7 @@ import storm
 import time
 import runner
 from common import util
+import constants
 
 # Config vars
 n_envs = 5
@@ -53,7 +54,7 @@ def main(mode):
         env.close()
         return
     print('>> manager >> created envs. Took ', s.delta)
-    no_act_vec = [(0, 0, 3,) for _ in range(n_envs)]
+    no_act_vec = [constants.no_op_action for _ in range(n_envs)]
 
     # TODO:
     # obs = np.zeros() # some initial state
@@ -83,7 +84,7 @@ def main(mode):
             for i in range(5):
                 ss = Stopwatch()
                 print(">> manager >> step {}, taking actions: {}".format(i, actions))
-                obs, rews = env.step(actions, ref_act) # obs is n_envs x 1
+                obs, rews, infos = env.step(actions, ref_act) # obs is n_envs x 1
                 #print(rews)
                 #print("obs shape", obs.shape)
                 try:
