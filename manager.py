@@ -20,7 +20,7 @@ from common import util
 import constants
 
 # Config vars
-n_envs = 4
+n_envs = 1
 console_debug = False
 train = True
 mode_options = ['train', 'resume', 'test']
@@ -87,13 +87,18 @@ def main(mode):
                 #print(rews)
                 #print("obs shape", obs.shape)
                 try:
+                    sss = Stopwatch()
                     actions = [agent.step(obs[i][0]) for i, agent in enumerate(agents)]
                     ref_act = [refbot.step(obs[i][1]) for i in range(len(agents))]
                 except TypeError as e:
                     print("TypeError!!! ", e)
                     break
+
+                print("running NN :", sss.delta)
                 print(">> manager >> step {}, taking actions: {}".format(i, actions))
+                ssss = Stopwatch()
                 obs, rews, infos = env.step(actions, ref_act) # obs is n_envs x 1
+                print("Running env : ", ssss.delta)
                 print('>> manager >> just took step {}. Took: {}'.format(i, ss.delta))
                 time.sleep(0.03)
 

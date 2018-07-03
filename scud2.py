@@ -52,9 +52,11 @@ class Scud(object):
             self.base = self.add_base()
             
             self.get_non_spatial = self.add_non_spatial(self.base)
-            self.get_spatial = self.add_spatial(self.base)
+            self.get_spatial = self.add_spatial(self.base, self.get_non_spatial)
 
             self.model = tf.keras.models.Model(inputs=self.input, outputs=[self.get_non_spatial, self.get_spatial])
+            if self.debug:
+                print(">> SCUD2 >> Total number of parameters: ", self.model.count_params()) # currently 561 711, max 4 000 000 in paper
             #self.model.compile(optimizer=tf.train.AdamOptimizer) #gives error of 'only tf native optimizers are supported in eager mode'
             self.tau_lineage = []
         return None
@@ -129,18 +131,29 @@ class Scud(object):
         #util.write_action(x,y,building)
         return x,y,building
 
-    def add_spatial(self, net):
+    def add_spatial(self, net, non_spatial_logits):
         '''
         Gets the spatial action of the network
         '''
         if self.debug:
             log("getting spatial action")
             s = Stopwatch()
+
+        k = net.get_shape().as_list()
+        broadcast_stats = Layers.RepeatVector(int(k[1]*k[2]))(non_spatial_logits)
+        broadcast_stats2 = Layers.Reshape((k[1], k[2], constants.n_base_actions))(broadcast_stats)
+        net = Layers.concatenate([net, broadcast_stats2], axis=-1)
+
         net = Layers.Conv2D(32, [3, 3],
             strides=1,
             padding='SAME',
             activation=tf.nn.relu,
             name="finalConv")(net)
+        net = Layers.Conv2D(32, [3, 3],
+            strides=1,
+            padding='SAME',
+            activation=tf.nn.relu,
+            name="finalConv2")(net)
         net = Layers.Conv2D(1, [1, 1],
             strides=1,
             padding='SAME',
@@ -148,6 +161,8 @@ class Scud(object):
 
         logits = Layers.Flatten()(net)
         #probs = Layers.Dense(flat, activation='softmax', name='softmax')(flat)
+
+        ## DOES NOT WORK WITH EAGER. EAGER = NO MIXING NATIVE TF STUFF WITH KERAS STUFF.
         #dist = tf.distributions.Categorical(logits=flat)
         #sample = dist.sample()
 
@@ -189,7 +204,7 @@ class Scud(object):
             s = Stopwatch()
         with tf.name_scope("adding_base") as scope:
             net = self.input
-            for i in range(2):
+            for i in range(3):
                 net = (Layers.Conv2D(32, [3, 3],
                             strides=1,
                             padding='SAME',

@@ -7,7 +7,6 @@ Author: Matthew Baas
 import tensorflow as tf
 from common import util
 import os
-import time
 from common.metrics import Stopwatch
 from common import metrics
 from scud2 import Scud
@@ -18,10 +17,10 @@ summary = tf.contrib.summary
 
 ##############################
 ###### TRAINING CONFIG #######
-n_generations = 50#100
-trunc_size = 5#4
+n_generations = 1#100
+trunc_size = 7#4
 scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
-invalid_act_penalty_dense = -1
+invalid_act_penalty_dense = -2
 invalid_act_penalty_binary = -0.01
 
 ## Refbot/opponent upgrading config
@@ -32,13 +31,13 @@ refbot_queue_length = 3
 # [elite_additional_episodes] episodes (averaging rewards over them) to find the
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
-elite_additional_episodes = 4#4
+elite_additional_episodes = 3#4
 n_elite_in_royale = 5
 
-max_episode_length = 80#90
+max_episode_length = 70#90
 gamma = 0.99 # reward decay. 
 gamma_func = lambda x : 0.03*x + 0.96
-n_population = 80#100
+n_population = 10#100
 sigma = 0.0022 # guassian std scaling
 
 scud_debug = False
@@ -55,7 +54,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     #early_episodes = 0
 
     ## Setting up logs
-    writer = summary.create_file_writer(util.get_logdir('test2nd'), flush_millis=10000)
+    writer = summary.create_file_writer(util.get_logdir('test3rd'), flush_millis=10000)
     writer.set_as_default()
     global_step = tf.train.get_or_create_global_step()
 
@@ -149,7 +148,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         ############################################
         ## Evaluating elite candidates to find elite
 
-        #partition_stopwatch.lap('refbot replace + summaries')
+        #partition_stopwatch.lap('summaries 1')
         # setup next generation parents / elite agents
         if g == 0:
             if resume_trianing == False:
@@ -223,12 +222,12 @@ def train(env, n_envs, no_op_vec, resume_trianing):
 
         print(str('='*50) + '\n' + 'Generation ' + str(g) + '. Took  ' + s.delta +  '(total: ' + total_s.delta + ')\n' + str('='*50) )
         s.reset()
-        #partition_stopwatch.lap('summaries and updates')
+        #partition_stopwatch.lap('summaries 2 and updates/saves')
 
     ###############################
     ## Shutdown behavior
 
-    #print("PARTITION STOPWATCH RESULTS:")
+    #print("PARTITION STOPWATCH RESULTS:") # last i checked runtime is *dominated*
     #partition_stopwatch.print_results()
     elite.save(util.get_savedir(), elite_savename)
     summary.flush()

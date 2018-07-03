@@ -326,7 +326,7 @@ class Env():
             self.proc.wait()
         self.needs_reset = False
         self.done = False
-        time.sleep(0.05)
+        time.sleep(0.01)
         # trying to kill jar wrapper of this env
         pid_file = os.path.join(self.run_path, 'wrapper_pid.txt')
         if os.path.isfile(pid_file):
@@ -380,7 +380,7 @@ class Env():
         else:
             if self.debug:
                 print(">> PYENV >> Attempted to close refbot wrapper pid but the wrapper pid file was not found ")
-        time.sleep(0.05)
+        time.sleep(0.01)
 
         command = 'java -jar ' + os.path.join(self.run_path, jar_name)
 
@@ -459,13 +459,6 @@ class Env():
             if self.debug:
                 print(">> PYENV >> Attempted to close refbot wrapper pid but the wrapper pid file was not found ")
         time.sleep(0.1)
-        # pid_file2 = os.path.join(self.refenv.ref_path, 'wrapper_pid.txt')
-        # with open(pid_file2, 'r') as f:
-        #     wrapper_pid2 = int(f.read())
-        #     if wrapper_pid2 == 0:
-        #         return None
-        #     else:
-        #         os.kill(wrapper_pid2, signal.SIGTERM)
 
         self.pid = None
         return True
