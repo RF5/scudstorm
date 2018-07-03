@@ -21,6 +21,8 @@ summary = tf.contrib.summary
 n_generations = 50#100
 trunc_size = 5#4
 scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
+invalid_act_penalty_dense = -1
+invalid_act_penalty_binary = -0.01
 
 ## Refbot/opponent upgrading config
 replace_refbot_every = 10
@@ -321,7 +323,16 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
                         failure = True
                         break
                 else:
-                    a.fitness_score = rews[i][0] + gamma*a.fitness_score
+                    inner_rew = rews[i][0]
+                    if 'valid' in ep_infos[i].keys():
+                        if ep_infos[i]['valid'] == False:
+                            if scoring_method == 'binary':
+                                inner_rew += invalid_act_penalty_binary
+                            else:
+                                inner_rew += invalid_act_penalty_dense
+
+                    a.fitness_score = inner_rew + gamma*a.fitness_score
+                            
 
                 if 'winner' in ep_infos[i].keys():
                     if ep_infos[i]['winner'] == 'A':
@@ -330,8 +341,6 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
                         rollout_info['refbotWins'] += 1
                     else:
                         rollout_info['ties'] += 1
-
-
 
             if failure:
                 print("Failure detected. Redoing last batch... (len Q before = ", len(queue), ' ; after = ')

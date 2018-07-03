@@ -14,7 +14,8 @@ import numpy as np
 from shutil import copy2
 import shutil
 import signal
-from common.util import write_prep_action, ControlObject
+from common.util import write_prep_action, ControlObject, get_initial_obs
+from common.obs_parsing import is_valid_action
 from common.metrics import Stopwatch
 
 # Config variables
@@ -46,6 +47,7 @@ class Env():
         self.needs_reset = True
         self.pid = None
         self.done = False
+        self.prev_obs = get_initial_obs(1)[0][0]
 
     def setup_directory(self):
         # creates the dirs responsible for this env, 
@@ -179,7 +181,16 @@ class Env():
                 if self.debug:
                     print("PYENV: >> GAME ENDING EARLY FOR THE FIRST TIME")
                 self.done = True
+
+                valid, reason = is_valid_action(action, self.prev_obs)
                 obs = self.load_state()
+                self.prev_obs = obs
+
+                if valid == True:
+                    ep_info['valid'] = True
+                else:
+                    ep_info['valid'] = False
+
                 ref_obs = self.refenv.load_state()
                 if obs['players'][0]['playerType'] == 'A':
                     a_hp = obs['players'][0]['health']
@@ -221,7 +232,14 @@ class Env():
         ## Loading the obs if their jar's ended properly
         #ref_obs, _ = self.refenv.step(ref_act)
         if should_load_obs:
+            valid, reason = is_valid_action(action, self.prev_obs)
             obs = self.load_state()
+            self.prev_obs = obs
+
+            if valid == True:
+                ep_info['valid'] = True
+            else:
+                ep_info['valid'] = False
         if should_load_obs2:
             ref_obs = self.refenv.load_state()
 
@@ -416,6 +434,30 @@ class Env():
                         break
         else:
             print(">> PYENV >> Attempted to close wrapper pid but the wrapper pid file was not found ")
+        time.sleep(0.1)
+
+        refpid_file = os.path.join(self.refbot_path, 'wrapper_pid.txt')
+        if os.path.isfile(refpid_file):
+            flag = False
+            while flag == False:
+                with open(refpid_file, 'r') as f:
+                    try:
+                        wrapper_pid2 = int(f.read())
+                    except ValueError:
+                        continue
+                    if wrapper_pid2 == 0:
+                        flag = True
+                        return None
+                    else:
+                        flag = True
+                        try:
+                            os.kill(wrapper_pid2, signal.SIGTERM)
+                        except (PermissionError, ProcessLookupError) as e:
+                            if self.debug:
+                                print(">> PYENV ", self.name, " >> Attempted to close refbot wrapper pid ", wrapper_pid2, " but got ERROR ", e)
+        else:
+            if self.debug:
+                print(">> PYENV >> Attempted to close refbot wrapper pid but the wrapper pid file was not found ")
         time.sleep(0.1)
         # pid_file2 = os.path.join(self.refenv.ref_path, 'wrapper_pid.txt')
         # with open(pid_file2, 'r') as f:

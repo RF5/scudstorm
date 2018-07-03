@@ -7,6 +7,7 @@ Author: Matthew Baas
 import numpy as np
 import tensorflow as tf
 from common.metrics import Stopwatch
+import constants
 
 debug = False
 
@@ -27,7 +28,8 @@ def parse_obs(game_state):
     # works for jar v1.1.2
     prices = {"ATTACK": game_state['gameDetails']['buildingsStats']['ATTACK']['price'],
                 "DEFENSE":game_state['gameDetails']['buildingsStats']['DEFENSE']['price'],
-                "ENERGY":game_state['gameDetails']['buildingsStats']['ENERGY']['price']}
+                "ENERGY":game_state['gameDetails']['buildingsStats']['ENERGY']['price'],
+                "TESLTA":game_state['gameDetails']['buildingsStats']['TESLA']['price'],}
 
     with tf.name_scope("shaping_inputs") as scope:
         if debug:
@@ -40,13 +42,13 @@ def parse_obs(game_state):
         k = proj.get_shape().as_list()
         proj = tf.reshape(proj, [int(k[0]), int(k[1] / 2), 6]) # 20x20x6. Only works for single misssiles
 
-        non_spatial = list(player_info.values())[1:] + list(opponent_info.values())[1:] + list(prices.values()) # 11x1
+        non_spatial = list(player_info.values())[1:] + list(opponent_info.values())[1:] + list(prices.values()) # 12x1
         non_spatial = tf.cast(non_spatial, dtype=tf.float32)
         # broadcasting the non-spatial features to the channel dimension
         broadcast_stats = tf.tile(tf.expand_dims(tf.expand_dims(non_spatial, axis=0), axis=0), [int(k[0]), int(k[1] / 2), 1]) # now 20x20x11
 
         # adding all the inputs together via the channel dimension
-        spatial = tf.concat([pb, ob, proj, broadcast_stats], axis=-1) # 20x20x(16 + 11)
+        spatial = tf.concat([pb, ob, proj, broadcast_stats], axis=-1) # 20x20x(16 + 12)
         
 
         if debug:
@@ -152,3 +154,46 @@ def getProjectiles(full_map, rows, columns):
         projectiles.append(temp)
         
     return projectiles
+
+def is_valid_action(action, game_state):
+    if debug:
+        print("Checking if action ", action, 'is valid')
+
+    ## An action is invalid IF you are:
+    # Trying to place a building when you don't have enough energy.
+    # Trying to place a building on coordinates that are currently occupied by another building.
+    # Trying to place a building on your opponent's side of the map or coordinates that are out of bounds. -- N/A
+    # Trying to deconstruct where you currently do not have a building.
+
+    x, y, build = action
+
+    build_name = constants.reverse_action_map[build]
+
+    # Trying to place a building when you don't have enough energy.
+    if build_name in constants.building_names:
+        # we are actually triny go build a building
+        if build_name == 'defence':
+            price = game_state['gameDetails']['buildingsStats']['DEFENSE']['price']
+        else:
+            price = game_state['gameDetails']['buildingsStats'][build_name.upper()]['price']
+        player_info = getPlayerInfo('A', game_state)
+        cur_energy = int(player_info['energy'])
+
+        if price > cur_energy:
+            # they could not affort it.
+            return False, 'Insufficient funds for building'
+
+        # Trying to place a building on coordinates that are currently occupied by another building.
+        building_infos = game_state['gameMap'][x][y]['buildings']
+        if len(building_infos) >= 1:
+            return False, 'Tried to place a building where there already was one'
+
+    if build_name.lower() == 'deconstruct':
+        # check if we are trying to deconstruct where we don't even have a building
+        building_infos = game_state['gameMap'][x][y]['buildings']
+        if len(building_infos) <= 0:
+            return False, 'Tried to deconstruct where there was no building'
+
+    
+
+    return True, 'Valid action'

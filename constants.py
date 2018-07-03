@@ -23,6 +23,14 @@ reverse_action_map = {
     action_map['tesla']: 'tesla',
     action_map['no_op']: 'no_op'}
 
+bulding_map = {
+    action_map['defence']: 'DEFENSE',
+    action_map['attack']: 'ATTACK', 
+    action_map['energy']: 'ENERGY',
+    action_map['tesla']: 'TESLA'}
+
+building_names = ['attack', 'defence', 'energy', 'tesla']
+
 no_op_action = (0, 0, action_map['no_op'],)
 
 n_base_actions = 6

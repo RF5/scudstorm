@@ -20,7 +20,7 @@ from common import util
 import constants
 
 # Config vars
-n_envs = 5
+n_envs = 4
 console_debug = False
 train = True
 mode_options = ['train', 'resume', 'test']
@@ -78,13 +78,12 @@ def main(mode):
             agents = [Scud(name=str(i), debug=False) for i in range(n_envs)]
             refbot = Scud('ref', False)
             env.reset()
-            ob = util.get_initial_obs(n_envs)
+            obs = util.get_initial_obs(n_envs)
             #print("manager obs shape = ", ob.shape)
             ref_act = None
             for i in range(5):
                 ss = Stopwatch()
-                print(">> manager >> step {}, taking actions: {}".format(i, actions))
-                obs, rews, infos = env.step(actions, ref_act) # obs is n_envs x 1
+                
                 #print(rews)
                 #print("obs shape", obs.shape)
                 try:
@@ -93,10 +92,12 @@ def main(mode):
                 except TypeError as e:
                     print("TypeError!!! ", e)
                     break
+                print(">> manager >> step {}, taking actions: {}".format(i, actions))
+                obs, rews, infos = env.step(actions, ref_act) # obs is n_envs x 1
                 print('>> manager >> just took step {}. Took: {}'.format(i, ss.delta))
                 time.sleep(0.03)
 
-            runner.run_battle(agents[0], refbot, env)
+            #runner.run_battle(agents[0], refbot, env)
 
         except Exception as err:
             try:

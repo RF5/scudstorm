@@ -61,7 +61,8 @@ class ScudFast:
         
         self.prices = {"ATTACK": self.game_state['gameDetails']['buildingsStats']['ATTACK']['price'],
                     "DEFENSE":self.game_state['gameDetails']['buildingsStats']['DEFENSE']['price'],
-                    "ENERGY":self.game_state['gameDetails']['buildingsStats']['ENERGY']['price']}
+                    "ENERGY":self.game_state['gameDetails']['buildingsStats']['ENERGY']['price'],
+                    "TESLTA":self.game_state['gameDetails']['buildingsStats']['TESLA']['price']}
 
         path = self.get_savepath()
         self.model = tf.keras.models.load_model(path)

@@ -29,7 +29,7 @@ debug_verbose = False
 endpoints = {}
 device = 'gpu'
 tf.enable_eager_execution()
-input_channels = 27
+input_channels = 28
 # let an example map size be 20x40, so each player's building area is 20x20
     
 class Scud(object):
