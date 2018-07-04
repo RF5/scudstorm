@@ -1,7 +1,7 @@
 {
 	"author": "Matthew Baas",
 	"email": "matthew.baas@gmail.com",
-	"nickName": "Baas",
+	"nickName": "BaasRefbot",
 	"botLocation": "/",
 	"botFileName": "jar_wrapper.py",
 	"botLanguage": "python3"

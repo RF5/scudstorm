@@ -18,6 +18,7 @@ import time
 import runner
 from common import util
 import constants
+#import StarterBotPrime
 
 # Config vars
 n_envs = 1
@@ -76,33 +77,48 @@ def main(mode):
         try:
             actions = no_act_vec
             agents = [Scud(name=str(i), debug=False) for i in range(n_envs)]
+
+            # checkpoint_names = os.listdir(util.get_savedir('checkpoints'))
+            # checkpoint_names = sorted(checkpoint_names, reverse=True)
+
+            # agents[0].load(util.get_savedir('checkpoints'), checkpoint_names[1])
+
             refbot = Scud('ref', False)
             env.reset()
             obs = util.get_initial_obs(n_envs)
             #print("manager obs shape = ", ob.shape)
+            env.reset()
             ref_act = None
-            for i in range(5):
+            for i in range(10):
                 ss = Stopwatch()
                 
                 #print(rews)
                 #print("obs shape", obs.shape)
                 try:
                     sss = Stopwatch()
-                    actions = [agent.step(obs[i][0]) for i, agent in enumerate(agents)]
+                    actions = [agent.step(obs[j][0]) for j, agent in enumerate(agents)]
                     ref_act = [refbot.step(obs[i][1]) for i in range(len(agents))]
+                    #ref_act = [StarterBotPrime.step(obs[0][1]),]
                 except TypeError as e:
+                    try:
+                        exc_info = sys.exc_info()
+
+                    finally:
+                        traceback.print_exception(*exc_info)
+                        del exc_info
                     print("TypeError!!! ", e)
                     break
 
                 print("running NN :", sss.delta)
-                print(">> manager >> step {}, taking actions: {}".format(i, actions))
+                print(">> manager >> step {}, taking actions: {} and refactions {}".format(i, actions, ref_act))
                 ssss = Stopwatch()
                 obs, rews, infos = env.step(actions, ref_act) # obs is n_envs x 1
                 print("Running env : ", ssss.delta)
                 print('>> manager >> just took step {}. Took: {}'.format(i, ss.delta))
-                time.sleep(0.03)
+                time.sleep(0.1)
 
             #runner.run_battle(agents[0], refbot, env)
+            
 
         except Exception as err:
             try:

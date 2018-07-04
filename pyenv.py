@@ -48,6 +48,7 @@ class Env():
         self.pid = None
         self.done = False
         self.prev_obs = get_initial_obs(1)[0][0]
+        self.clock = Stopwatch()
 
     def setup_directory(self):
         # creates the dirs responsible for this env, 
@@ -381,6 +382,13 @@ class Env():
             if self.debug:
                 print(">> PYENV >> Attempted to close refbot wrapper pid but the wrapper pid file was not found ")
         time.sleep(0.01)
+        
+        #######################
+        ## Flushing matchlogs folder if env alive for over 1h
+        if self.clock.deltaT() >= 3600:
+            print(">> PYENV {} >> Env alive for over 1h, flushing (deleting) matchlogs folder".format(self.name))
+            self.cleanup()
+            self.clock.reset()
 
         command = 'java -jar ' + os.path.join(self.run_path, jar_name)
 
@@ -390,7 +398,7 @@ class Env():
             she = True
 
         if self.debug:
-            self.proc = subprocess.Popen(command, shell=she ,cwd=self.run_path)
+            self.proc = subprocess.Popen(command, shell=she , stdout=subprocess.PIPE, cwd=self.run_path)
             print("Opened process: ", str(command), " with pid ", self.proc.pid)
         else:
             self.proc = subprocess.Popen(command, shell=she, stdout=subprocess.DEVNULL, cwd=self.run_path)
@@ -470,7 +478,9 @@ class Env():
             print("Removing folder: ", log_path)
         try:
             shutil.rmtree(log_path)
+            pass
         except Exception:
+            print(">> PYENV >> Exception occured while removing matchlogs folder")
             pass
 
 class RefEnv():

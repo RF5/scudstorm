@@ -17,15 +17,15 @@ summary = tf.contrib.summary
 
 ##############################
 ###### TRAINING CONFIG #######
-n_generations = 1#100
+n_generations = 60#100
 trunc_size = 7#4
 scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
 invalid_act_penalty_dense = -2
 invalid_act_penalty_binary = -0.01
 
 ## Refbot/opponent upgrading config
-replace_refbot_every = 10
-refbot_queue_length = 3
+replace_refbot_every = 1
+refbot_queue_length = 30
 
 # the top [n_elite_in_royale] of agents will battle it out over an additional
 # [elite_additional_episodes] episodes (averaging rewards over them) to find the
@@ -54,7 +54,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     #early_episodes = 0
 
     ## Setting up logs
-    writer = summary.create_file_writer(util.get_logdir('test3rd'), flush_millis=10000)
+    writer = summary.create_file_writer(util.get_logdir('test4th'), flush_millis=10000)
     writer.set_as_default()
     global_step = tf.train.get_or_create_global_step()
 
@@ -199,11 +199,15 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             del refbot_queue[0]
             
             print(str('='*50) + '\n' + '">> STORM >> Upgrading refbot now.\n' + str('='*50) )
-            good_params = agents[trunc_size-1].get_flat_weights()
+            #good_params = agents[trunc_size-1].get_flat_weights()
+            good_params = agents[np.random.random_integers(0, trunc_size-1)].get_flat_weights()
             toback.set_flat_weights(good_params)
 
             refbot_queue.append(toback)
-            refbot = refbot_queue[0]
+            #refbot = refbot_queue[0]
+            ################
+            ## Sampling refbot uniformly from past <refbot_queue_length> generation's agents
+            refbot = refbot_queue[np.random.random_integers(0, refbot_queue_length-1)]
 
             for i, bot in enumerate(refbot_queue):
                 bot.refbot_position = i
@@ -213,7 +217,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         if g % save_elite_every == 0 and g != 0:
             elite.save(util.get_savedir('checkpoints'), 'gen' + str(g) + 'elite')
             for refAgent in refbot_queue:
-                refAgent.save(util.get_savedir('refbots'), 'gen' + str(g) + str(refAgent.refbot_position))
+                refAgent.save(util.get_savedir('refbots'), 'gen' + str(g) + 'pos' + str(refAgent.refbot_position))
 
             for i, truncAgent in enumerate(agents[:trunc_size]):
                 truncAgent.save(util.get_savedir('truncs'), 'gen' + str(g) + 'agent' + str(i))
@@ -342,9 +346,9 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
                         rollout_info['ties'] += 1
 
             if failure:
-                print("Failure detected. Redoing last batch... (len Q before = ", len(queue), ' ; after = ')
+                curQlen = len(queue)
                 queue = cur_playing_agents + queue
-                print(len(queue))
+                print("Failure detected. Redoing last batch... (len Q before = ", curQlen, ' ; after = ', len(queue))
                 break
 
             if debug:

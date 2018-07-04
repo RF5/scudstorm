@@ -35,6 +35,7 @@ def fight(env, agent1, agent2, n_fights, max_steps, debug=False):
     failed_eps = 0
     agent1Wins = 0
     agent2Wins = 0
+    ties = 0
 
     while len(queue) > 0:
         # KEEP THIS THERE OTHERWISE SHIT BREAKS
@@ -104,11 +105,13 @@ def fight(env, agent1, agent2, n_fights, max_steps, debug=False):
                         agent1Wins += 1
                     elif ep_infos[i]['winner'] == 'B':
                         agent2Wins += 1
+                    elif ep_infos[i]['winner'] == 'TIE':
+                        ties += 1
 
             if failure:
-                print("Failure detected. Redoing last batch... (len Q before = ", len(queue), ' ; after = ')
+                curQlen = len(queue)
                 queue = cur_playing_agents + queue
-                print(len(queue))
+                print("Failure detected. Redoing last batch... (len Q before = ", curQlen, ' ; after = ', len(queue))
                 break
 
             if debug:
@@ -122,17 +125,27 @@ def fight(env, agent1, agent2, n_fights, max_steps, debug=False):
 
     pbar.close()
 
-    return agent1Wins, agent2Wins, early_eps, failed_eps
+    return agent1Wins, agent2Wins, early_eps, failed_eps, ties
 
 def run_battle(a1, a2, env):
-    a1.save(util.get_savedir('memes'), 'a1.h5')
-    a2.save(util.get_savedir('memes'), 'a2.h5')
 
-    a1.load(util.get_savedir('memes'), 'a1.h5')
-    a2.load(util.get_savedir('memes'), 'a2.h5')
+    checkpoint_names = os.listdir(util.get_savedir('checkpoints'))
+    checkpoint_names = sorted(checkpoint_names, reverse=True)
 
-    agent1Wins, agent2Wins, early_eps, failed_eps = fight(env, a1, a2, n_fights=2, max_steps=70, debug=False)
-    print("Agent1Wins: ", agent1Wins)
-    print("Agent2Wins: ", agent2Wins)
-    print("EarlyEps: ", early_eps)
-    print("FailedEps: ", failed_eps)
+    elite = a1
+    elite.load(util.get_savedir('checkpoints'), checkpoint_names[0])
+
+    refbot_names = os.listdir(util.get_savedir('refbots'))
+    refbot_names = sorted(refbot_names, reverse=True)
+
+    for agent_name in refbot_names:
+        a2.load(util.get_savedir('refbots'), agent_name)
+
+        agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, elite, a2, n_fights=4, max_steps=80, debug=False)
+        #print("Agent1Wins: ", agent1Wins)
+        #print("Agent2Wins: ", agent2Wins)
+        print("Elite (" + checkpoint_names[0] + ") wins: ", agent1Wins)
+        print(str(agent_name) + ' wins: ', agent2Wins)
+        print("EarlyEps: ", early_eps)
+        print("FailedEps: ", failed_eps)
+        print("Ties: ", ties)
