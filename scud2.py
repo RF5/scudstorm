@@ -27,7 +27,7 @@ Internal agent config
 '''
 debug_verbose = False
 endpoints = {}
-device = 'gpu'
+device = 'cpu'
 tf.enable_eager_execution()
 input_channels = 28
 # let an example map size be 20x40, so each player's building area is 20x20
@@ -38,6 +38,7 @@ class Scud(object):
         '''
         Build agent graph.
         '''
+
         self.name = name
         self.debug = debug
         self.fitness_score = 0
@@ -46,19 +47,20 @@ class Scud(object):
         self.mask_output = False
         if self.debug:
             log("Running conv2d on " + device)
-        with tf.device('/' + device + ':0'):
-            self.input = Layers.Input(shape=(int(constants.map_width/2), constants.map_height, input_channels))
+        # with tf.device('/' + device + ':0'):
+        self.input = Layers.Input(shape=(int(constants.map_width/2), constants.map_height, input_channels))
 
-            self.base = self.add_base()
-            
-            self.get_non_spatial = self.add_non_spatial(self.base)
-            self.get_spatial = self.add_spatial(self.base, self.get_non_spatial)
+        self.base = self.add_base()
+        
+        self.get_non_spatial = self.add_non_spatial(self.base)
+        self.get_spatial = self.add_spatial(self.base, self.get_non_spatial)
 
-            self.model = tf.keras.models.Model(inputs=self.input, outputs=[self.get_non_spatial, self.get_spatial])
-            if self.debug:
-                print(">> SCUD2 >> Total number of parameters: ", self.model.count_params()) # currently 561 711, max 4 000 000 in paper
-            #self.model.compile(optimizer=tf.train.AdamOptimizer) #gives error of 'only tf native optimizers are supported in eager mode'
-            self.tau_lineage = []
+        self.model = tf.keras.models.Model(inputs=self.input, outputs=[self.get_non_spatial, self.get_spatial])
+        #self.model.compile()
+        if self.debug:
+            print(">> SCUD2 >> Total number of parameters: ", self.model.count_params()) # currently 561 711, max 4 000 000 in paper
+        #self.model.compile(optimizer='rmsprop') #gives error of 'only tf native optimizers are supported in eager mode'
+        self.tau_lineage = []
         return None
 
     def step(self, inputs):

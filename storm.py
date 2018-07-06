@@ -12,13 +12,14 @@ from common import metrics
 from scud2 import Scud
 import numpy as np
 import random
+import tf_logging_util
 
 summary = tf.contrib.summary
 
 ##############################
 ###### TRAINING CONFIG #######
 n_generations = 60#100
-trunc_size = 7#4
+trunc_size = 8#4
 scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
 invalid_act_penalty_dense = -2
 invalid_act_penalty_binary = -0.01
@@ -31,13 +32,13 @@ refbot_queue_length = 30
 # [elite_additional_episodes] episodes (averaging rewards over them) to find the
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
-elite_additional_episodes = 3#4
-n_elite_in_royale = 5
+elite_additional_episodes = 4#4
+n_elite_in_royale = 6
 
-max_episode_length = 70#90
+max_episode_length = 80#90
 gamma = 0.99 # reward decay. 
 gamma_func = lambda x : 0.03*x + 0.96
-n_population = 10#100
+n_population = 80#100
 sigma = 0.0022 # guassian std scaling
 
 scud_debug = False
@@ -46,15 +47,19 @@ elite_score_moving_avg_periods = 4
 elite_savename = 'elite'
 save_elite_every = 10
 
+#tf.logging.set_verbosity(tf.logging.FATAL)
+tf_logging_util.set_logging_level('error')
+
 def train(env, n_envs, no_op_vec, resume_trianing):
     print(str('='*50) + '\n' + 'Initializing agents\n' + str('='*50) )
     ##############################
     ## Summary buckets
     #failed_episodes = 0
     #early_episodes = 0
+    refbot_back_ind = 1
 
     ## Setting up logs
-    writer = summary.create_file_writer(util.get_logdir('test4th'), flush_millis=10000)
+    writer = summary.create_file_writer(util.get_logdir('train6th'), flush_millis=10000)
     writer.set_as_default()
     global_step = tf.train.get_or_create_global_step()
 
@@ -192,13 +197,16 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             summary.scalar('elite_rollout/early_eps', rollout_info['early_eps'])
             summary.scalar('elite_rollout/failed_eps', rollout_info['failed_eps'])
 
+            summary.scalar('hyperparameters/refbot_back_ind', refbot_back_ind)
+
         #################################
         ## Replacing reference bot
         if g % replace_refbot_every == 0 and g != 0:
             toback = refbot
             del refbot_queue[0]
             
-            print(str('='*50) + '\n' + '">> STORM >> Upgrading refbot now.\n' + str('='*50) )
+            refbot_back_ind = np.random.random_integers(0, refbot_queue_length-1)
+            print(str('='*50) + '\n' + '">> STORM >> Upgrading refbot (to pos ' + refbot_back_ind + ') now.\n' + str('='*50) )
             #good_params = agents[trunc_size-1].get_flat_weights()
             good_params = agents[np.random.random_integers(0, trunc_size-1)].get_flat_weights()
             toback.set_flat_weights(good_params)
@@ -207,7 +215,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             #refbot = refbot_queue[0]
             ################
             ## Sampling refbot uniformly from past <refbot_queue_length> generation's agents
-            refbot = refbot_queue[np.random.random_integers(0, refbot_queue_length-1)]
+            refbot = refbot_queue[refbot_back_ind]
 
             for i, bot in enumerate(refbot_queue):
                 bot.refbot_position = i
@@ -221,6 +229,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
 
             for i, truncAgent in enumerate(agents[:trunc_size]):
                 truncAgent.save(util.get_savedir('truncs'), 'gen' + str(g) + 'agent' + str(i))
+            
 
         global_step.assign_add(1)
 

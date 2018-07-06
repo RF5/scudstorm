@@ -21,7 +21,7 @@ import constants
 #import StarterBotPrime
 
 # Config vars
-n_envs = 1
+n_envs = 8 # 10 seems to work nice for C5x4large
 console_debug = False
 train = True
 mode_options = ['train', 'resume', 'test']
