@@ -12,6 +12,7 @@ from common.metrics import Stopwatch
 from common import metrics
 import numpy as np
 import random
+import StarterBotPrime
 
 def fight(env, agent1, agent2, n_fights, max_steps, debug=False):
     '''
@@ -133,19 +134,30 @@ def run_battle(a1, a2, env):
     checkpoint_names = sorted(checkpoint_names, reverse=True)
 
     elite = a1
-    elite.load(util.get_savedir('checkpoints'), checkpoint_names[0])
+    #elite.load(util.get_savedir(), 'elite')
+    elite.load(util.get_savedir('checkpoints'), 'gen30elite.h5')
 
-    refbot_names = os.listdir(util.get_savedir('refbots'))
-    refbot_names = sorted(refbot_names, reverse=True)
+    #refbot_names = os.listdir(util.get_savedir('refbots'))
+    #refbot_names = sorted(refbot_names, reverse=True)
 
-    for agent_name in refbot_names:
-        a2.load(util.get_savedir('refbots'), agent_name)
+    agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, elite, StarterBotPrime, n_fights=32, max_steps=110, debug=False)
+    #print("Agent1Wins: ", agent1Wins)
+    #print("Agent2Wins: ", agent2Wins)
+    print("Elite (" + 'elite.h5' + ") wins: ", agent1Wins)
+    print('StarterBot wins: ', agent2Wins)
+    print("EarlyEps: ", early_eps)
+    print("FailedEps: ", failed_eps)
+    print("Ties: ", ties)
 
-        agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, elite, a2, n_fights=4, max_steps=80, debug=False)
-        #print("Agent1Wins: ", agent1Wins)
-        #print("Agent2Wins: ", agent2Wins)
-        print("Elite (" + checkpoint_names[0] + ") wins: ", agent1Wins)
-        print(str(agent_name) + ' wins: ', agent2Wins)
-        print("EarlyEps: ", early_eps)
-        print("FailedEps: ", failed_eps)
-        print("Ties: ", ties)
+
+    # for agent_name in checkpoint_names:
+    #     a2.load(util.get_savedir('checkpoints'), agent_name)
+
+    #     agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, elite, a2, n_fights=4, max_steps=90, debug=False)
+    #     #print("Agent1Wins: ", agent1Wins)
+    #     #print("Agent2Wins: ", agent2Wins)
+    #     print("Elite (" + 'elite.h5' + ") wins: ", agent1Wins)
+    #     print(str(agent_name) + ' wins: ', agent2Wins)
+    #     print("EarlyEps: ", early_eps)
+    #     print("FailedEps: ", failed_eps)
+    #     print("Ties: ", ties)

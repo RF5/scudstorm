@@ -14,6 +14,7 @@ import tensorflow as tf
 from common.metrics import log, Stopwatch
 import numpy as np
 import common.util as util
+from common.custom_layers import SampleCategoricalLayer, OneHotLayer
 import constants
 from common import obs_parsing
 
@@ -51,7 +52,6 @@ class Scud(object):
         self.input = Layers.Input(shape=(int(constants.map_width/2), constants.map_height, input_channels))
 
         self.base = self.add_base()
-        
         self.get_non_spatial = self.add_non_spatial(self.base)
         self.get_spatial = self.add_spatial(self.base, self.get_non_spatial)
 
@@ -70,14 +70,23 @@ class Scud(object):
             return 0, 0, 3
 
         k, self.rows, self.columns = obs_parsing.parse_obs(inputs)
-        self.spatial = tf.expand_dims(k, axis=0) # now should have shape (1, 8, 8, 25)
+        spatial = tf.expand_dims(k, axis=0) # now should have shape (1, 8, 8, 25)
 
-        return self.generate_action()
+        a0, a1 = self.model.predict(spatial)
+        building = a0[0]
+
+        coords = tf.unravel_index(a1[0], [self.rows, self.columns/2])
+        x = int(coords[0])
+        y = int(coords[1])
+        if self.debug:
+            log("x, y = " + str(x) + ", " + str(y))
+        
+        #util.write_action(x,y,building)
+        return x,y,building
         
     def get_flat_weights(self):
         ## Not actually flat weights atm
         weights = self.model.get_weights()
-
         return weights
 
     def set_flat_weights(self, params):
@@ -86,54 +95,7 @@ class Scud(object):
         #    weights.append(tf.reshape(param_vec, shape=))
         self.model.set_weights(params)
 
-    def generate_action(self):
-        '''
-        Scud model estimator
-        '''
-
-        a0, a1 = self.model.predict(self.spatial)
-        #probs = tf.nn.softmax(a0)
-        #sample = np.random.choice([0, 1, 2, 3], p=probs)
-
-        dist = tf.distributions.Categorical(logits=a0)
-        sample = dist.sample()
-        if self.debug:
-            print("a0 = ", a0, a0.shape)
-            print(sample)
-        building = int(sample) # now an int between 0 and 3
-        if self.debug:
-            log("a0 = " + str(a0))
-
-        dist2 = tf.distributions.Categorical(logits=a1)
-        sample2 = dist2.sample()
-
-        coords = tf.unravel_index(sample2, [self.rows, self.columns/2])
-        x = int(coords[0])
-        y = int(coords[1])
-        if self.debug:
-            log("x, y = " + str(x) + ", " + str(y))
-
-        ## loading the state (for RNN stuffs)
-        # if self.debug:
-        #     log("Loading state")
-        #     sss = Stopwatch()
-        # _ = np.load('scudstate.npy') # takes ~ 0.031s
-        # if self.debug:
-        #     log("State loaded. Took: " + sss.delta)
-
-        # ## saving the state (for RNN stuffs)
-        # if self.debug:
-        #     log("Saving state")
-        #     ss = Stopwatch()
-        # new_state = net
-        # np.save('scudstate.npy', new_state)
-        # if self.debug:
-        #     log("State saved. Took: " + ss.delta)
-        
-        #util.write_action(x,y,building)
-        return x,y,building
-
-    def add_spatial(self, net, non_spatial_logits):
+    def add_spatial(self, net, a0):
         '''
         Gets the spatial action of the network
         '''
@@ -141,10 +103,12 @@ class Scud(object):
             log("getting spatial action")
             s = Stopwatch()
 
+        one_hot_a0 = OneHotLayer(constants.n_base_actions)(a0)
+
         k = net.get_shape().as_list()
-        broadcast_stats = Layers.RepeatVector(int(k[1]*k[2]))(non_spatial_logits)
+        broadcast_stats = Layers.RepeatVector(int(k[1]*k[2]))(one_hot_a0)
         broadcast_stats2 = Layers.Reshape((k[1], k[2], constants.n_base_actions))(broadcast_stats)
-        net = Layers.concatenate([net, broadcast_stats2], axis=-1)
+        net = Layers.concatenate([net, broadcast_stats2], axis=-1) # (?, 8, 8, 38)
 
         net = Layers.Conv2D(32, [3, 3],
             strides=1,
@@ -162,17 +126,12 @@ class Scud(object):
             name="conv1x1")(net)
 
         logits = Layers.Flatten()(net)
-        #probs = Layers.Dense(flat, activation='softmax', name='softmax')(flat)
 
-        ## DOES NOT WORK WITH EAGER. EAGER = NO MIXING NATIVE TF STUFF WITH KERAS STUFF.
-        #dist = tf.distributions.Categorical(logits=flat)
-        #sample = dist.sample()
-
-        #coords = tf.unravel_index(sample, [self.rows, self.columns/2])
+        a1_sampled = SampleCategoricalLayer()(logits)
 
         if self.debug:
             log("Finished spatial action inference. Took: " + s.delta)
-        return logits
+        return a1_sampled
 
     def add_non_spatial(self, net):
         '''
@@ -185,20 +144,15 @@ class Scud(object):
         non_spatial = Layers.Dense(256,
                     activation=tf.nn.relu,
                     name="non_spatial")(flatten)
-        a0 = Layers.Dense(constants.n_base_actions,
+        a0_logits = Layers.Dense(constants.n_base_actions,
                     name="a0")(non_spatial)
 
-        # TODO: possibly softmax this and then transform it into an int from 0 - 4
-        # possibly use tf autoregressive distribution
-        ## Do not work with eager
-
-        #dist = self.track_layer(tf.distributions.Categorical(logits=a0))
-        #sample = self.track_layer(dist.sample())
+        a0_sampled = SampleCategoricalLayer()(a0_logits)
 
         if self.debug:
             log("Finished non-spatial action. Took: " + s.delta)
 
-        return a0
+        return a0_sampled
 
     def add_base(self):
         if self.debug:
@@ -244,10 +198,9 @@ class Scud(object):
                 path = os.path.join(filepath, str(savename))
         self.model = tf.keras.models.load_model(path)
         print(">> SCUD >> ", self.name ," had model restored from file ", path)
-
+    
 
 if __name__ == '__main__':
-
     k = Stopwatch()
     s = Scud('www', debug=True)
     we = s.get_flat_weights()

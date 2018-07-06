@@ -3,7 +3,8 @@ Scudstorm fast - for tournamet runtime
 Upgrades:
 - Camo Netting
 
-Entelect StarterBot for Python3
+Currently takes ~1.37s when running on medium-low spec PC. (GTX 680, i7-3770k)
+Author: Matthew Baas
 '''
 
 import json
@@ -62,7 +63,7 @@ class ScudFast:
         self.prices = {"ATTACK": self.game_state['gameDetails']['buildingsStats']['ATTACK']['price'],
                     "DEFENSE":self.game_state['gameDetails']['buildingsStats']['DEFENSE']['price'],
                     "ENERGY":self.game_state['gameDetails']['buildingsStats']['ENERGY']['price'],
-                    "TESLTA":self.game_state['gameDetails']['buildingsStats']['TESLA']['price']}
+                    "TESLA":self.game_state['gameDetails']['buildingsStats']['TESLA']['price']}
 
         path = self.get_savepath()
         self.model = tf.keras.models.load_model(path)

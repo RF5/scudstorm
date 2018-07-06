@@ -178,7 +178,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             agents = [elite,] + agents[:len(agents)-1]
 
         for i, a in enumerate(elo_ags):
-            print('Elite stats: pos', i, a.name, " with fitness score: ", a.fitness_score)
+            print('Elite stats: pos', i, '; name: ', a.name, " ; fitness score: ", a.fitness_score)
 
         ############################
         ## Summary information 2
@@ -224,8 +224,9 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         ## Saving agents periodically
         if g % save_elite_every == 0 and g != 0:
             elite.save(util.get_savedir('checkpoints'), 'gen' + str(g) + 'elite')
-            for refAgent in refbot_queue:
-                refAgent.save(util.get_savedir('refbots'), 'gen' + str(g) + 'pos' + str(refAgent.refbot_position))
+            if refbot_queue_length < 5:
+                for refAgent in refbot_queue:
+                    refAgent.save(util.get_savedir('refbots'), 'gen' + str(g) + 'pos' + str(refAgent.refbot_position))
 
             for i, truncAgent in enumerate(agents[:trunc_size]):
                 truncAgent.save(util.get_savedir('truncs'), 'gen' + str(g) + 'agent' + str(i))
@@ -246,6 +247,9 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     summary.flush()
     for i, ag in enumerate(agents[:trunc_size]):
         ag.save(os.path.join(util.get_savedir(), 'truncs'), str(i))
+
+    for refAgent in refbot_queue:
+        refAgent.save(util.get_savedir('refbots'), 'finalRefbot' + 'Pos' + str(refAgent.refbot_position))
 
 def mutate(parent, child, g):
     old_params = parent.get_flat_weights()
