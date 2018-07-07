@@ -236,7 +236,7 @@ class Scud(object):
                 path = os.path.join(filepath, str(savename))
         os.makedirs(filepath, exist_ok=True)
         self.model.save(path, include_optimizer=False)
-        print(">> SCUD >> ", self.name, " saved model to file ", path)
+        print(">> SCUD >> ", self.name, " saved model to file ", str(path)[-60:])
     
     def load(self, filepath, savename):
         if savename is None:
@@ -247,7 +247,7 @@ class Scud(object):
             else:
                 path = os.path.join(filepath, str(savename))
         self.model = tf.keras.models.load_model(path, custom_objects=custom_keras_layers)
-        print(">> SCUD >> ", self.name ," had model restored from file ", path)
+        print(">> SCUD >> ", self.name ," had model restored from file ", str(path)[-60:])
     
 
 if __name__ == '__main__':

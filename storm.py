@@ -19,26 +19,26 @@ summary = tf.contrib.summary
 ##############################
 ###### TRAINING CONFIG #######
 n_generations = 61#100
-trunc_size = 10#4
+trunc_size = 8#4
 scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
-invalid_act_penalty_dense = -4
+invalid_act_penalty_dense = -2
 invalid_act_penalty_binary = -0.01
 
 ## Refbot/opponent upgrading config
 replace_refbot_every = 1
-refbot_queue_length = 30
+refbot_queue_length = 25
 
 # the top [n_elite_in_royale] of agents will battle it out over an additional
 # [elite_additional_episodes] episodes (averaging rewards over them) to find the
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
-elite_additional_episodes = 4#4
-n_elite_in_royale = 8
+elite_additional_episodes = 1#4
+n_elite_in_royale = 5
 
-max_episode_length = 100#90
+max_episode_length = 200#90
 gamma = 0.99 # reward decay. 
 gamma_func = lambda x : 0.03*x + 0.96
-n_population = 96#100
+n_population = 10#100
 sigma = 0.0022 # guassian std scaling
 
 scud_debug = False
@@ -58,7 +58,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     refbot_back_ind = 1
 
     ## Setting up logs
-    writer = summary.create_file_writer(util.get_logdir('train7th'), flush_millis=10000)
+    writer = summary.create_file_writer(util.get_logdir('train8th'), flush_millis=10000)
     writer.set_as_default()
     global_step = tf.train.get_or_create_global_step()
 
@@ -82,11 +82,11 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     ## Restoring from last training session
     if resume_trianing:
         print(str('='*50) + '\n' + '>> STORM >> Resuming training.\n' + str('='*50))
-        checkpoint_names = os.listdir(util.get_savedir('checkpoints'))
-        checkpoint_names = sorted(checkpoint_names, reverse=True)
+        trunc_names = os.listdir(util.get_savedir('truncFinals'))
+        trunc_names = sorted(trunc_names, reverse=True)
 
-        elite = agents[0]
-        elite.load(util.get_savedir('checkpoints'), checkpoint_names[0])
+        for j in range(trunc_size):
+            agents[j+1].load(util.get_savedir('truncFinals'), trunc_names[j])
 
         refbot_names = os.listdir(util.get_savedir('refbots'))
         refbot_names = sorted(refbot_names, reverse=False)
@@ -94,6 +94,10 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         for i in range(refbot_queue_length):
             refbot_queue[i].load(util.get_savedir('refbots'), refbot_q_names[i])
             refbot_queue[i].refbot_position = i
+
+        elite = agents[0]
+        elite.load(util.get_savedir(), 'elite')
+
         print(">> STORM >> Successfully restored from last checkpoints")
 
     print(str('='*50) + '\n' + 'Beginning training\n' + str('='*50) )
@@ -121,7 +125,11 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         next_generation = tmp
         
         # evaluate fitness on each agent in population
-        agents, additional_steps, rollout_info = evaluate_fitness(env, agents, refbot, debug=False)
+        try:
+            agents, additional_steps, rollout_info = evaluate_fitness(env, agents, refbot, debug=False)
+        except KeyboardInterrupt as e:
+            print("Received keyboard interrupt {}. Saving and then closing env.".format(e))
+            break
         total_steps += additional_steps
 
         # sort them based on final discounted reward
@@ -179,7 +187,8 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         except ValueError:
             agents = [elite,] + agents[:len(agents)-1]
 
-        for i, a in enumerate(elo_ags):
+        print("Elite stats: agent wins - {} | refbot wins - {} | Early - {}".format(rollout_info['agentWins'], rollout_info['refbotWins'], rollout_info['early_eps']))
+        for i, a in enumerate(elo_ags):   
             print('Elite stats: pos', i, '; name: ', a.name, " ; fitness score: ", a.fitness_score)
 
         ############################
@@ -236,7 +245,6 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             for i, truncAgent in enumerate(agents[:trunc_size]):
                 truncAgent.save(util.get_savedir('truncs'), 'gen' + str(g) + 'agent' + str(i))
             
-
         global_step.assign_add(1)
 
         print(str('='*50) + '\n' + 'Generation ' + str(g) + '. Took  ' + s.delta +  '(total: ' + total_s.delta + ')\n' + str('='*50) )
@@ -251,7 +259,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     elite.save(util.get_savedir(), elite_savename)
     summary.flush()
     for i, ag in enumerate(agents[:trunc_size]):
-        ag.save(os.path.join(util.get_savedir(), 'truncs'), str(i))
+        ag.save(util.get_savedir('truncFinals'), 'finalTrunc' + str(i))
 
     for refAgent in refbot_queue:
         refAgent.save(util.get_savedir('refbots'), 'finalRefbot' + 'Pos' + str(refAgent.refbot_position))
@@ -372,7 +380,7 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
             if failure:
                 curQlen = len(queue)
                 queue = cur_playing_agents + queue
-                print("Failure detected. Redoing last batch... (len Q before = ", curQlen, ' ; after = ', len(queue))
+                print("Failure detected. Redoing last batch... (len Q before = ", curQlen, ' ; after = ', len(queue), ')')
                 break
 
             if debug:

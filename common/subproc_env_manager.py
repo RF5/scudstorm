@@ -97,6 +97,7 @@ class SubprocEnvManager(object):
 		if verbose:
 			print("============\nCLEARED RESET (Reset counter = {})\n============".format(self.reset_counter))
 		#print("\n-----> Reset counter = {}".format(self.reset_counter))
+		time.sleep(0.01)
 		return k
 
 	# def action_spec(self):

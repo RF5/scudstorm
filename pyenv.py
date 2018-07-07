@@ -319,7 +319,7 @@ class Env():
         return np.concatenate([x, y], axis=-1)
 
     def reset(self):
-        self.step_num
+        self.step_num = 0
         if self.debug:
             with open(os.path.join(self.run_path, 'mylog.txt'), 'a') as f:
                 f.write(str(time.time()) + "\t-->RESETTING!!!\n")
@@ -409,6 +409,7 @@ class Env():
             self.proc = subprocess.Popen(command, shell=she, stdout=subprocess.DEVNULL, cwd=self.run_path)
         
         self.pid = self.proc.pid
+        time.sleep(0.01)
 
         return True
 

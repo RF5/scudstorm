@@ -161,7 +161,7 @@ def run_battle(a1, a2, env):
     #     print("FailedEps: ", failed_eps)
     #     print("Ties: ", ties)
 
-def calculate_mmr_values(players, env, total_games=10, game_max_steps=150):
+def calculate_mmr_values(players, env, total_games=10, game_max_steps=175):
     # players should be a list of agents
     bracket = MMRBracket()
 
@@ -182,16 +182,16 @@ def calculate_mmr_values(players, env, total_games=10, game_max_steps=150):
 
         for i, ag in enumerate(agent1s):
             if ag.name in matchup_dict:
-                if matchup_dict[ag.name] == 1:
+                if matchup_dict[ag.name] >= 1:
                     bracket.recordMatch(ag.name, agent2s[i].name, winner=ag.name)
-                elif matchup_dict[ag.name] == -1:
+                elif matchup_dict[ag.name] <= -1:
                     bracket.recordMatch(ag.name, agent2s[i].name, winner=agent2s[i].name)
                 elif matchup_dict[ag.name] == 0:
                     bracket.recordMatch(ag.name, agent2s[i].name, draw=True)
 
     mmrs = bracket.getRatingList()
     mmrs = sorted(mmrs, key = lambda elm : elm[-1], reverse=True)
-    print(str('='*50) + '\n' + 'MMR Rankings\n' + str('='*50))
+    print(str('='*60) + '\n' + 'MMR Rankings\n' + str('-'*60))
     for mmr in mmrs:
         print("Name: {:25} | MMR: {:7.2f} | Simulated matches: {:3d}".format(mmr[0], mmr[2], mmr[1]))
 
@@ -202,12 +202,13 @@ def mmr_from_checkpoints(env):
     checkpoint_names = sorted(checkpoint_names, reverse=True)
 
     agents = [Scud(name=str(name)) for name in checkpoint_names]
+    
+    for agent in agents:
+        agent.load(util.get_savedir('checkpoints'), agent.name)
+
     agents.append(StarterBotPrime)
 
-    # for agent in agents:
-    #     agent.load(util.get_savedir('checkpoints'), agent.name)
-
-    mmrs = calculate_mmr_values(agents, env)
+    mmrs = calculate_mmr_values(agents, env, total_games=30)
     ## Will print out something like
     # Name: StarterBotPrime           | MMR: 1049.76 | Simulated matches:   5
     # Name: gen50elite.h5             | MMR: 1037.71 | Simulated matches:   2
@@ -259,17 +260,16 @@ def parallel_fight(env, agent1s, agent2s, max_steps, debug=False):
             if type(rews[i][0]) == util.ControlObject:
                 if rews[i][0].code == "EARLY":
                     a.mask_output = True
-                    if step == max_steps-1:
-                        early_eps += 1
+                        
                     #a.fitness_score = a.fitness_score + 1
                 elif rews[i][0].code == "FAILURE":
                     # redo this whole fucking batch
                     failed_eps += 1
                     failure = True
                     break
-            else:
-                pass
+
             if 'winner' in ep_infos[i].keys():
+                early_eps += 1
                 if ep_infos[i]['winner'] == 'A':
                     matchup_dict[a.name] = 1
                 elif ep_infos[i]['winner'] == 'B':
