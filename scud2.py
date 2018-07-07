@@ -32,6 +32,11 @@ device = 'cpu'
 tf.enable_eager_execution()
 input_channels = 28
 # let an example map size be 20x40, so each player's building area is 20x20
+
+## Custom layer mapping
+custom_keras_layers = {
+    'SampleCategoricalLayer': SampleCategoricalLayer,
+    'OneHotLayer': OneHotLayer}
     
 class Scud(object):
     
@@ -49,13 +54,14 @@ class Scud(object):
         if self.debug:
             log("Running conv2d on " + device)
         # with tf.device('/' + device + ':0'):
-        self.input = Layers.Input(shape=(int(constants.map_width/2), constants.map_height, input_channels))
+        with tf.name_scope(str(self.name) + 'Model'):
+            self.input = Layers.Input(shape=(int(constants.map_width/2), constants.map_height, input_channels))
 
-        self.base = self.add_base()
-        self.get_non_spatial = self.add_non_spatial(self.base)
-        self.get_spatial = self.add_spatial(self.base, self.get_non_spatial)
+            self.base = self.add_base()
+            self.get_non_spatial = self.add_non_spatial(self.base)
+            self.get_spatial = self.add_spatial(self.base, self.get_non_spatial)
 
-        self.model = tf.keras.models.Model(inputs=self.input, outputs=[self.get_non_spatial, self.get_spatial])
+            self.model = tf.keras.models.Model(inputs=self.input, outputs=[self.get_non_spatial, self.get_spatial])
         #self.model.compile()
         if self.debug:
             print(">> SCUD2 >> Total number of parameters: ", self.model.count_params()) # currently 561 711, max 4 000 000 in paper
@@ -63,26 +69,60 @@ class Scud(object):
         self.tau_lineage = []
         return None
 
-    def step(self, inputs):
-        if self.mask_output == True or type(inputs) == util.ControlObject:
-            if self.debug:
-                print("scud ", self.name, 'output masked')
-            return 0, 0, 3
+    def step(self, inputs, batch_predict=False):
+        '''
+        Takes a step of the Scud model.
+        If batch_predict is set to True, we assume inputs is a batch of all env obs 
+        and return an array of the corresponding actions.
+        '''
 
-        k, self.rows, self.columns = obs_parsing.parse_obs(inputs)
-        spatial = tf.expand_dims(k, axis=0) # now should have shape (1, 8, 8, 25)
+        if batch_predict == True:
+            batch_list = []
+            for game_state in inputs:
+                if type(game_state) == util.ControlObject:
+                    continue
+                k, self.rows, self.columns = obs_parsing.parse_obs(game_state)
+                batch_list.append(k)
+            if len(batch_list) == 0:
+                return [(0, 0, 3) for _ in range(len(inputs))]
+            spatial = tf.stack(batch_list, axis=0)
+        else:
+            if self.mask_output == True or type(inputs) == util.ControlObject:
+                if self.debug:
+                    print("scud ", self.name, 'output masked')
+                return 0, 0, 3
+            k, self.rows, self.columns = obs_parsing.parse_obs(inputs)
+            spatial = tf.expand_dims(k, axis=0) # now should have shape (1, 8, 8, 25)
 
         a0, a1 = self.model.predict(spatial)
-        building = a0[0]
 
-        coords = tf.unravel_index(a1[0], [self.rows, self.columns/2])
-        x = int(coords[0])
-        y = int(coords[1])
-        if self.debug:
-            log("x, y = " + str(x) + ", " + str(y))
+        arr = []
+        rng = 1
+        sep_cnt = 0
+        if batch_predict:
+            rng = len(inputs)
         
-        #util.write_action(x,y,building)
-        return x,y,building
+        for i in range(rng):
+            if batch_predict:
+                if type(inputs[i]) == util.ControlObject:
+                    arr.append((0, 0, 3))
+                    continue
+
+            building = a0[sep_cnt]
+            coords = tf.unravel_index(a1[sep_cnt], [self.rows, self.columns/2])
+
+            x = int(coords[0])
+            y = int(coords[1])
+            if self.debug:
+                log("x, y = " + str(x) + ", " + str(y))
+            arr.append((x, y, building))
+            sep_cnt += 1
+
+        if batch_predict:
+            return arr
+        else:
+            x, y, building = arr[0]
+            return x,y,building
         
     def get_flat_weights(self):
         ## Not actually flat weights atm
@@ -115,11 +155,21 @@ class Scud(object):
             padding='SAME',
             activation=tf.nn.relu,
             name="finalConv")(net)
+        net = Layers.Conv2D(8, [1, 1],
+            strides=1,
+            padding='SAME',
+            activation=tf.nn.relu,
+            name="reduce1")(net)
         net = Layers.Conv2D(32, [3, 3],
             strides=1,
             padding='SAME',
             activation=tf.nn.relu,
             name="finalConv2")(net)
+        net = Layers.Conv2D(16, [3, 3],
+            strides=1,
+            padding='SAME',
+            activation=tf.nn.relu,
+            name="finalConv3")(net)
         net = Layers.Conv2D(1, [1, 1],
             strides=1,
             padding='SAME',
@@ -196,7 +246,7 @@ class Scud(object):
                 path = os.path.join(filepath, str(savename) + '.h5')
             else:
                 path = os.path.join(filepath, str(savename))
-        self.model = tf.keras.models.load_model(path)
+        self.model = tf.keras.models.load_model(path, custom_objects=custom_keras_layers)
         print(">> SCUD >> ", self.name ," had model restored from file ", path)
     
 

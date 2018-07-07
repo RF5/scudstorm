@@ -10,6 +10,7 @@ Author: Matthew Baas
 import json
 import os
 import tensorflow as tf
+from custom_layers import SampleCategoricalLayer, OneHotLayer
 
 tf.enable_eager_execution()
 
@@ -30,6 +31,10 @@ reverse_action_map = {
     action_map['deconstruct']: 'deconstruct',
     action_map['tesla']: 'tesla',
     action_map['no_op']: 'no_op'}
+
+custom_keras_layers = {
+    'SampleCategoricalLayer': SampleCategoricalLayer,
+    'OneHotLayer': OneHotLayer}
 
 debug = True
 
@@ -66,7 +71,7 @@ class ScudFast:
                     "TESLA":self.game_state['gameDetails']['buildingsStats']['TESLA']['price']}
 
         path = self.get_savepath()
-        self.model = tf.keras.models.load_model(path)
+        self.model = tf.keras.models.load_model(path, custom_objects=custom_keras_layers)
         self.form_input()
 
         return None
@@ -193,37 +198,14 @@ class ScudFast:
         return projectiles
         
     def generateAction(self):
-        '''
-        Place your bot logic here !
-        
-        - If there is an opponent attack unit on a row, and you have enough energy for a defense
-             Build a defense at a random unoccupied location on that row if it is undefended.
-        - Else If you have enough energy for the most expensive building 
-             Build a random building type at a random unoccupied location
-        - Else: 
-             Save energy until you have enough for the most expensive building
-             
-        Building Types :
-            0 : Defense Building
-            1 : Attack Building
-            2 : Energy Building
-        '''
-        lanes = []
-        x,y,building = 0,0,0
-
+        # spatial now should have shape (1, 8, 8, 25)
         a0, a1 = self.model.predict(self.spatial)
+        building = a0[0]
 
-        dist = tf.distributions.Categorical(logits=a0)
-        sample = dist.sample()
-        building = int(sample) # now an int between 0 and 3
-
-        dist2 = tf.distributions.Categorical(logits=a1)
-        sample2 = dist2.sample()
-
-        coords = tf.unravel_index(sample2, [self.rows, self.columns/2])
+        coords = tf.unravel_index(a1[0], [self.rows, self.columns/2])
         x = int(coords[0])
         y = int(coords[1])
-
+        
         self.writeCommand(x,y,building)
 
         return x,y,building
@@ -246,6 +228,12 @@ class ScudFast:
         return None
 
 if __name__ == '__main__':
+    if debug:
+        import time
+        startime = int(round(time.time() * 1000))
     s = ScudFast('state.json')
     s.generateAction()
+    if debug:
+        endtime = int(round(time.time() * 1000))
+        print("Scudfast took: ", str((endtime - startime) / 1000) + 's')
     

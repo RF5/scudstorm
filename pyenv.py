@@ -25,7 +25,7 @@ game_config_name = 'game-config.properties'
 wrapper_out_filename = 'wrapper_out.txt'
 state_name = 'state.json'
 bot_file_name = 'bot.json'
-per_step_reward_penalty = -10
+per_step_reward_penalty = -20
 
 binary_step_penalty = -0.01
 
@@ -49,6 +49,7 @@ class Env():
         self.done = False
         self.prev_obs = get_initial_obs(1)[0][0]
         self.clock = Stopwatch()
+        self.step_num = 0
 
     def setup_directory(self):
         # creates the dirs responsible for this env, 
@@ -186,6 +187,8 @@ class Env():
                 valid, reason = is_valid_action(action, self.prev_obs)
                 obs = self.load_state()
                 self.prev_obs = obs
+                
+                ep_info['n_steps'] = self.step_num
 
                 if valid == True:
                     ep_info['valid'] = True
@@ -228,7 +231,7 @@ class Env():
 
             time.sleep(0.01)
         # TODO: possibly pre-parse obs here and derive a reward from it?
-
+        
         #########################
         ## Loading the obs if their jar's ended properly
         #ref_obs, _ = self.refenv.step(ref_act)
@@ -257,6 +260,7 @@ class Env():
 
         # print('-----A------------->', obs['players'][0]['health'])
         # print('-----B------------->', obs['players'][1]['health'])
+        self.step_num += 1
 
         ########################
         ## Forming rewards and packaging the obs into a good numpy form
@@ -315,6 +319,7 @@ class Env():
         return np.concatenate([x, y], axis=-1)
 
     def reset(self):
+        self.step_num
         if self.debug:
             with open(os.path.join(self.run_path, 'mylog.txt'), 'a') as f:
                 f.write(str(time.time()) + "\t-->RESETTING!!!\n")
@@ -385,8 +390,8 @@ class Env():
         
         #######################
         ## Flushing matchlogs folder if env alive for over 1h
-        if self.clock.deltaT() >= 3600:
-            print(">> PYENV {} >> Env alive for over 1h, flushing (deleting) matchlogs folder".format(self.name))
+        if self.clock.deltaT() >= 1800:
+            print(">> PYENV {} >> Env alive for over half an hour, flushing (deleting) matchlogs folder".format(self.name))
             self.cleanup()
             self.clock.reset()
 

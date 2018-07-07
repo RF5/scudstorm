@@ -18,10 +18,10 @@ summary = tf.contrib.summary
 
 ##############################
 ###### TRAINING CONFIG #######
-n_generations = 60#100
-trunc_size = 8#4
+n_generations = 61#100
+trunc_size = 10#4
 scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
-invalid_act_penalty_dense = -2
+invalid_act_penalty_dense = -4
 invalid_act_penalty_binary = -0.01
 
 ## Refbot/opponent upgrading config
@@ -33,12 +33,12 @@ refbot_queue_length = 30
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
 elite_additional_episodes = 4#4
-n_elite_in_royale = 6
+n_elite_in_royale = 8
 
-max_episode_length = 80#90
+max_episode_length = 100#90
 gamma = 0.99 # reward decay. 
 gamma_func = lambda x : 0.03*x + 0.96
-n_population = 80#100
+n_population = 96#100
 sigma = 0.0022 # guassian std scaling
 
 scud_debug = False
@@ -47,7 +47,6 @@ elite_score_moving_avg_periods = 4
 elite_savename = 'elite'
 save_elite_every = 10
 
-#tf.logging.set_verbosity(tf.logging.FATAL)
 tf_logging_util.set_logging_level('error')
 
 def train(env, n_envs, no_op_vec, resume_trianing):
@@ -59,7 +58,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     refbot_back_ind = 1
 
     ## Setting up logs
-    writer = summary.create_file_writer(util.get_logdir('train6th'), flush_millis=10000)
+    writer = summary.create_file_writer(util.get_logdir('train7th'), flush_millis=10000)
     writer.set_as_default()
     global_step = tf.train.get_or_create_global_step()
 
@@ -146,6 +145,9 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             summary.scalar('main_rollout/ties', rollout_info['ties'])
             summary.scalar('main_rollout/early_eps', rollout_info['early_eps'])
             summary.scalar('main_rollout/failed_eps', rollout_info['failed_eps'])
+
+            summary.histogram('main_rollout/ep_lengths', rollout_info['ep_lengths'])
+            summary.scalar('main_rollout/mean_ep_length', np.mean(rollout_info['ep_lengths']))
         
         for a in agents[:trunc_size]:
             print(a.name, " with fitness score: ", a.fitness_score)
@@ -197,6 +199,9 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             summary.scalar('elite_rollout/early_eps', rollout_info['early_eps'])
             summary.scalar('elite_rollout/failed_eps', rollout_info['failed_eps'])
 
+            summary.histogram('elite_rollout/ep_lengths', rollout_info['ep_lengths'])
+            summary.scalar('elite_rollout/mean_ep_length', np.mean(rollout_info['ep_lengths']))
+
             summary.scalar('hyperparameters/refbot_back_ind', refbot_back_ind)
 
         #################################
@@ -206,7 +211,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             del refbot_queue[0]
             
             refbot_back_ind = np.random.random_integers(0, refbot_queue_length-1)
-            print(str('='*50) + '\n' + '">> STORM >> Upgrading refbot (to pos ' + refbot_back_ind + ') now.\n' + str('='*50) )
+            print(str('='*50) + '\n' + '">> STORM >> Upgrading refbot (to pos ' + str(refbot_back_ind) + ') now.\n' + str('='*50) )
             #good_params = agents[trunc_size-1].get_flat_weights()
             good_params = agents[np.random.random_integers(0, trunc_size-1)].get_flat_weights()
             toback.set_flat_weights(good_params)
@@ -279,10 +284,15 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
     print(">> ROLLOUTS >> Running rollout wave with queue length  ", init_length)
     pbar = metrics.ProgressBar(init_length)
     interior_steps = 0
-    rollout_info = {'early_eps': 0, 'failed_eps': 0, 'agentWins': 0, 'refbotWins': 0, 'ties': 0}
+    rollout_info = {'early_eps': 0, 
+        'failed_eps': 0, 
+        'agentWins': 0, 
+        'refbotWins': 0, 
+        'ties': 0,
+        'ep_lengths': []}
+    
 
     while len(queue) > 0:
-        # KEEP THIS THERE OTHERWISE SHIT BREAKS
         pbar.show(init_length - len(queue))
 
         if len(queue) >= n_envs:
@@ -304,12 +314,12 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
             a.fitness_score = 0
             a.mask_output = False
 
-        ## TODO: Modify this for loop to be able to end early for games which finish early
         while step < max_episode_length:
             if debug:
                 ss = Stopwatch()
             actions = [agent.step(obs[i][0]) for i, agent in enumerate(cur_playing_agents)]
-            ref_actions = [refbot.step(obs[i][1]) for i in range(len(obs))]
+            #ref_actions = [refbot.step(obs[i][1]) for i in range(len(obs))]
+            ref_actions = refbot.step(obs[:, 1], batch_predict=True)
 
             if len(dummy_actions) > 0:
                 actions.extend(dummy_actions)
@@ -357,6 +367,7 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
                         rollout_info['refbotWins'] += 1
                     else:
                         rollout_info['ties'] += 1
+                    rollout_info['ep_lengths'].append(ep_infos[i]['n_steps'])
 
             if failure:
                 curQlen = len(queue)

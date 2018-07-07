@@ -1,7 +1,7 @@
 '''
 Useful Keras layers.
 
-They wrap fairly critical base tensorflow functions.
+They wrap fairly critical basae tensorflow functions.
 
 Author: Matthew Baas
 '''

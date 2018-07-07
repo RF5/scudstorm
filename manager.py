@@ -20,16 +20,16 @@ from common import util
 import constants
 
 # Config vars
-n_envs = 1 # 10 seems to work nice for C5x4large
+n_envs = 2 # 10 seems to work nice for C5x4large
 console_debug = False
 train = True
-mode_options = ['train', 'resume', 'test']
+mode_options = ['train', 'resume', 'test', 'rank']
 
 def main(mode):
     sTime = Stopwatch()
     env_names = ['env' + str(i) for i in range(n_envs)]
 
-    if mode == 'test':
+    if mode in ['test', 'rank']:
         train = False
     else:
         train = True
@@ -72,6 +72,22 @@ def main(mode):
             print('>> manager >> closing env. Total runtime: ', sTime.delta)
             env.close()
             sys.exit(0)
+    elif mode == 'rank':
+        try:
+            print("Getting MMR ranks")
+            runner.mmr_from_checkpoints(env)
+            print("Finished getting ranks")
+        except Exception as err:
+            try:
+                exc_info = sys.exc_info()
+
+            finally:
+                traceback.print_exception(*exc_info)
+                del exc_info
+        finally:
+            print('>> manager >> closing env. Total runtime: ', sTime.delta)
+            env.close()
+            sys.exit(0)
     else:
         try:
             actions = no_act_vec
@@ -81,6 +97,8 @@ def main(mode):
             # checkpoint_names = sorted(checkpoint_names, reverse=True)
 
             #agents[0].load(util.get_savedir('checkpoints'), 'gen50elite.h5')
+            #agents[0].load(util.get_savedir(), 'scudsave')
+            #agents[0].save(util.get_savedir(), 'scudsave')
         
             refbot = Scud('ref', False)
             env.reset()
@@ -93,10 +111,15 @@ def main(mode):
                 
                 #print(rews)
                 #print("obs shape", obs.shape)
+                #print("obs[:, 1] shape = ", obs[:, 1].shape) # the column of refbot obs
                 try:
                     sss = Stopwatch()
                     actions = [agent.step(obs[j][0]) for j, agent in enumerate(agents)]
-                    ref_act = [refbot.step(obs[i][1]) for i in range(len(agents))]
+                    print("running agents NN :", sss.delta)
+                    sss.reset()
+                    ref_act = refbot.step(obs[:, 1], batch_predict=True)
+                    #ref_act = [refbot.step(obs[i][1]) for i in range(len(agents))]
+                    print("running refbot NN :", sss.delta)
                     #ref_act = [StarterBotPrime.step(obs[j][1]) for j in range(n_envs)]
                 except TypeError as e:
                     try:
@@ -108,11 +131,11 @@ def main(mode):
                     print("TypeError!!! ", e)
                     break
 
-                #print("running NN :", sss.delta)
+                
                 print(">> manager >> step {}, taking actions: {} and refactions {}".format(i, actions, ref_act))
                 ssss = Stopwatch()
                 obs, rews, infos = env.step(actions, ref_act) # obs is n_envs x 1
-                #print("Running env : ", ssss.delta)
+                print("Running env : ", ssss.delta)
                 print('>> manager >> just took step {}. Took: {}'.format(i, ss.delta))
                 time.sleep(0.1)
 
