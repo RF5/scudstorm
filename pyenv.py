@@ -29,8 +29,10 @@ per_step_reward_penalty = -20
 
 binary_step_penalty = -0.01
 
+general_reward_scaling_factor = 0.30
+
 binary_win_reward = 1.0
-dense_win_reward = 100
+dense_win_reward = 500
 
 possible_reward_modes = ['dense', 'binary']
 reward_mode = possible_reward_modes[0]
@@ -267,13 +269,13 @@ class Env():
         if obs is not None:
             # Infer reward:
             #reward = float(obs['players'][0]['score']) - float(obs['players'][1]['score'])
-            curS = float(obs['players'][0]['score'])
+            curS = float(obs['players'][0]['score']) * general_reward_scaling_factor
             self.score_delta = curS - self.score
             reward = self.score_delta + per_step_reward_penalty
             self.score = curS
 
         if ref_obs is not None:
-            curS2 = float(ref_obs['players'][0]['score'])
+            curS2 = float(ref_obs['players'][0]['score']) * general_reward_scaling_factor
             self.refenv.score_delta = curS2 - self.refenv.score
             ref_reward = self.refenv.score_delta + per_step_reward_penalty
             self.refenv.score = curS2
@@ -394,6 +396,7 @@ class Env():
             print(">> PYENV {} >> Env alive for over half an hour, flushing (deleting) matchlogs folder".format(self.name))
             self.cleanup()
             self.clock.reset()
+            print("Cleand.")
 
         command = 'java -jar ' + os.path.join(self.run_path, jar_name)
 
@@ -484,10 +487,9 @@ class Env():
             print("Removing folder: ", log_path)
         try:
             shutil.rmtree(log_path)
-            pass
+            time.sleep(0.1)
         except Exception:
             print(">> PYENV >> Exception occured while removing matchlogs folder")
-            pass
 
 class RefEnv():
     def __init__(self, env, debug=False):

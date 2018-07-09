@@ -6,6 +6,7 @@ Author: Matthew Baas
 '''
 
 import numpy as np
+import random
 
 class MMRBracket(object):
     """
@@ -155,6 +156,12 @@ class _Player:
         """
         return ( 1+10**( ( opponent.rating-self.rating )/400.0 ) ) ** -1
 
+class Game:
+    def __init__(self, p1, p2, winner):
+        self.p1 = p1
+        self.p2 = p2
+        self.winner = winner
+
 if __name__ == '__main__':
     print("Running MMR tests...")
     i = MMRBracket()
@@ -199,4 +206,4 @@ if __name__ == '__main__':
     for elm in lis:
         print(elm)
 
-    print(">>> Advanced tests completed successfully.")
+    print(">>> Intermediary tests completed successfully.")

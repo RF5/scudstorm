@@ -10,7 +10,7 @@ import os
 import time
 from common.metrics import Stopwatch
 from common import metrics
-from common.mmr_lib import MMRBracket
+from common.mmr_lib import MMRBracket, Game
 from scud2 import Scud
 import numpy as np
 import random
@@ -132,22 +132,29 @@ def run_battle(a1, a2, env):
     checkpoint_names = os.listdir(util.get_savedir('checkpoints'))
     checkpoint_names = sorted(checkpoint_names, reverse=True)
 
-    elite = a1
+    #elite = a1
     #elite.load(util.get_savedir(), 'elite')
-    elite.load(util.get_savedir('checkpoints'), 'gen30elite.h5')
+    a1.load(util.get_savedir('checkpoints'), 'gen50elite.h5')
+    a1.name = 'gen50elite.h5'
+    #a2.load(util.get_savedir('checkpoints'), 'gen10elite.h5')
 
     #refbot_names = os.listdir(util.get_savedir('refbots'))
     #refbot_names = sorted(refbot_names, reverse=True)
 
-    agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, elite, StarterBotPrime, n_fights=32, max_steps=110)
+    agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, a1, StarterBotPrime, n_fights=12, max_steps=110)
     #print("Agent1Wins: ", agent1Wins)
     #print("Agent2Wins: ", agent2Wins)
-    print("Elite (" + 'elite.h5' + ") wins: ", agent1Wins)
-    print('StarterBot wins: ', agent2Wins)
+    print("[AGENT1] Elite (" + 'gen50elite.h5' + ") wins: ", agent1Wins)
+    print('[AGENT2] StarterBot wins: ', agent2Wins)
     print("EarlyEps: ", early_eps)
     print("FailedEps: ", failed_eps)
     print("Ties: ", ties)
 
+    print("{:20} games: {:5} | wins: {:4} | win rate: {:4.2f}%".format(a1.name, early_eps,
+        agent1Wins, 100*agent1Wins / early_eps))
+
+    print("{:20} games: {:5} | wins: {:4} | win rate: {:4.2f}%".format(a2.name, early_eps,
+        agent2Wins, 100*agent2Wins / early_eps))
 
     # for agent_name in checkpoint_names:
     #     a2.load(util.get_savedir('checkpoints'), agent_name)
@@ -161,7 +168,7 @@ def run_battle(a1, a2, env):
     #     print("FailedEps: ", failed_eps)
     #     print("Ties: ", ties)
 
-def calculate_mmr_values(players, env, total_games=10, game_max_steps=175):
+def calculate_mmr_values(players, env, fight_fn, total_games=10, game_max_steps=150):
     # players should be a list of agents
     bracket = MMRBracket()
 
@@ -170,24 +177,25 @@ def calculate_mmr_values(players, env, total_games=10, game_max_steps=175):
 
     from itertools import combinations
     all_possible_matchups = [comb for comb in combinations(players, 2)]
+    all_games = []
 
     for i in range(total_games):
+        time.sleep(0.1)
         matchups = random.sample(all_possible_matchups, env.num_envs)
-        agent1s, agent2s = zip(*matchups)
+        #p2 = players[-1]
+        #p1s = random.choices(players[:-1], k=env.num_envs)
+        #matchups = [(players[0], players[1]) for _ in range(env.num_envs)]
 
-        matchup_dict, early_eps, failed_eps, ties = parallel_fight(env, agent1s, agent2s, max_steps=game_max_steps)
-        print("EarlyEps: ", early_eps)
-        print("i = ", i)
-        print("Ties: ", ties)
+        games_arr, early_eps, failed_eps, ties = fight_fn(env, matchups, max_steps=game_max_steps)
+        
+        print("i = ", i, "EarlyEps: ", early_eps, "Ties: ", ties, 'GamesArr len: ', len(games_arr))
+        all_games.extend(games_arr)
 
-        for i, ag in enumerate(agent1s):
-            if ag.name in matchup_dict:
-                if matchup_dict[ag.name] >= 1:
-                    bracket.recordMatch(ag.name, agent2s[i].name, winner=ag.name)
-                elif matchup_dict[ag.name] <= -1:
-                    bracket.recordMatch(ag.name, agent2s[i].name, winner=agent2s[i].name)
-                elif matchup_dict[ag.name] == 0:
-                    bracket.recordMatch(ag.name, agent2s[i].name, draw=True)
+        for i, game in enumerate(games_arr):
+            if game.winner == 'TIE':
+                bracket.recordMatch(game.p1, game.p2, draw=True)
+            else:
+                bracket.recordMatch(game.p1, game.p2, winner=game.winner)
 
     mmrs = bracket.getRatingList()
     mmrs = sorted(mmrs, key = lambda elm : elm[-1], reverse=True)
@@ -195,38 +203,74 @@ def calculate_mmr_values(players, env, total_games=10, game_max_steps=175):
     for mmr in mmrs:
         print("Name: {:25} | MMR: {:7.2f} | Simulated matches: {:3d}".format(mmr[0], mmr[2], mmr[1]))
 
+    bins = {}
+    for playe in players:
+        bins[playe.name] = 0
+        bins[playe.name + 'wins'] = 0
+    for game in all_games:
+        if game.winner == 'TIE':
+            continue
+        bins[game.winner + 'wins'] += 1
+        bins[game.p1] += 1
+        bins[game.p2] += 1
+
+    for playe in players:
+        print("{:20} games: {:5} | wins: {:4} | win rate: {:4.2f}%".format(playe.name, bins[playe.name],
+            bins[playe.name + 'wins'], 100*bins[playe.name + 'wins'] / bins[playe.name]))
+
     return mmrs
 
 def mmr_from_checkpoints(env):
     checkpoint_names = os.listdir(util.get_savedir('checkpoints'))
-    checkpoint_names = sorted(checkpoint_names, reverse=True)
+    checkpoint_names = sorted(checkpoint_names, reverse=True)[:3]
 
     agents = [Scud(name=str(name)) for name in checkpoint_names]
     
     for agent in agents:
         agent.load(util.get_savedir('checkpoints'), agent.name)
+        #agent.load(util.get_savedir('checkpoints'), checkpoint_names[0])
 
     agents.append(StarterBotPrime)
 
-    mmrs = calculate_mmr_values(agents, env, total_games=30)
+    print("ranking agents:")
+    for a in agents:
+        print(str(a))
+    mmrs = calculate_mmr_values(agents, env, parallel_fight, total_games=20)
     ## Will print out something like
-    # Name: StarterBotPrime           | MMR: 1049.76 | Simulated matches:   5
-    # Name: gen50elite.h5             | MMR: 1037.71 | Simulated matches:   2
-    # Name: gen40elite.h5             | MMR: 1000.00 | Simulated matches:   0
-    # Name: gen10elite.h5             | MMR: 1000.00 | Simulated matches:   0
-    # Name: gen30elite.h5             | MMR:  997.71 | Simulated matches:   2
-    # Name: gen20elite.h5             | MMR:  914.82 | Simulated matches:   5
+    # ============================================================
+    # MMR Rankings
+    # ------------------------------------------------------------
+    # Name: StarterBotPrime           | MMR: 1256.71 | Simulated matches:  27
+    # Name: gen10elite.h5             | MMR: 1032.77 | Simulated matches:  16
+    # Name: gen40elite.h5             | MMR:  991.67 | Simulated matches:  10
+    # Name: gen30elite.h5             | MMR:  974.28 | Simulated matches:   7
+    # Name: gen20elite.h5             | MMR:  952.55 | Simulated matches:  10
+    # Name: gen50elite.h5             | MMR:  792.01 | Simulated matches:  18
 
-def parallel_fight(env, agent1s, agent2s, max_steps, debug=False):
+    # ============================================================
+    # MMR Rankings
+    # ------------------------------------------------------------
+    # Name: StarterBotPrime           | MMR: 1294.11 | Simulated matches:  35
+    # Name: gen30elite.h5             | MMR: 1068.41 | Simulated matches:  24
+    # Name: gen40elite.h5             | MMR:  867.57 | Simulated matches:  28
+    # Name: gen50elite.h5             | MMR:  769.91 | Simulated matches:  23
+
+def parallel_fight(env, matchups, max_steps, debug=False):
+    a1s = []
+    a2s = []
+    for a, b in matchups:
+        a1s.append(a)
+        a2s.append(b)
+    #a1s, a2s = [(e, f,) for e, f in zip(*matchups)]
 
     n_envs = env.num_envs
-    assert len(agent2s) == n_envs and len(agent1s) == n_envs, "agent lengths must be same as env"
+    assert len(matchups) == n_envs, "agent lengths must be same as env"
 
     print(">> PARALLEL FIGHT >> Running rollouts with {} games  ".format(n_envs))
     pbar = metrics.ProgressBar(max_steps)
     early_eps = 0
     failed_eps = 0
-    matchup_dict = {}
+    games = []
     ties = 0
 
     step = 0
@@ -236,15 +280,19 @@ def parallel_fight(env, agent1s, agent2s, max_steps, debug=False):
         return
     #obs = env.get_base_obs()
     obs = util.get_initial_obs(n_envs)
-    cur_playing_agents = agent1s
+
+    for aa, bb in matchups:
+            a.fitness_score = 0
+            a.mask_output = False
 
     while step < max_steps:
         pbar.show(step)
 
         if debug:
             ss = Stopwatch()
-        actions = [agent.step(obs[i][0]) for i, agent in enumerate(cur_playing_agents)]
-        ref_actions = [agent.step(obs[i][1]) for i, agent in enumerate(agent2s)]
+
+        actions = [agent.step(obs[i][0]) for i, agent in enumerate(a1s)]
+        ref_actions = [agen2.step(obs[i][1]) for i, agen2 in enumerate(a2s)]
         
         if len(actions) != len(ref_actions):
             print("LEN OF ACTIONS != LEN OF REF ACTIONS!!!!")
@@ -254,14 +302,13 @@ def parallel_fight(env, agent1s, agent2s, max_steps, debug=False):
             print(">> storm >> taking actions: ", actions, ' and ref actions ', ref_actions)
 
         obs, rews, ep_infos = env.step(actions, p2_actions=ref_actions)
-        ## TODO: loop through obs and check which one is a ControlObj, and stop processing the agents for the rest of that episode
+      
         failure = False
-        for i, a in enumerate(cur_playing_agents):
+        for i in range(n_envs):
             if type(rews[i][0]) == util.ControlObject:
                 if rews[i][0].code == "EARLY":
-                    a.mask_output = True
-                        
-                    #a.fitness_score = a.fitness_score + 1
+                    a1s[i].mask_output = True
+                    a2s[i].mask_output = True
                 elif rews[i][0].code == "FAILURE":
                     # redo this whole fucking batch
                     failed_eps += 1
@@ -271,11 +318,14 @@ def parallel_fight(env, agent1s, agent2s, max_steps, debug=False):
             if 'winner' in ep_infos[i].keys():
                 early_eps += 1
                 if ep_infos[i]['winner'] == 'A':
-                    matchup_dict[a.name] = 1
+                    #matchup_dict[a.name] = 'A'
+                    games.append(Game(a1s[i].name, a2s[i].name, winner=a1s[i].name))
                 elif ep_infos[i]['winner'] == 'B':
-                    matchup_dict[a.name] = -1
+                    #matchup_dict[a.name] = 'B'
+                    games.append(Game(a1s[i].name, a2s[i].name, winner=a2s[i].name))
                 elif ep_infos[i]['winner'] == 'TIE':
-                    matchup_dict[a.name] = 0
+                    #matchup_dict[a.name] = 'TIE'
+                    games.append(Game(a1s[i].name, a2s[i].name, winner='TIE'))
                     ties += 1
 
         if failure:
@@ -290,4 +340,60 @@ def parallel_fight(env, agent1s, agent2s, max_steps, debug=False):
 
     pbar.close()
 
-    return matchup_dict, early_eps, failed_eps, ties
+    return games, early_eps, failed_eps, ties
+
+if __name__ == '__main__':
+    print("Testing MMR system...")
+
+    def play_func(env, matchups, max_steps=3):
+        games = []
+        for a1, a2 in matchups:
+            if a1.name.startswith('p') and a2.name.startswith('p') == False:
+                win = random.random() < 1 # 70% change of winning
+                if win:
+                    games.append(Game(a1.name, a2.name, winner=a1.name))
+                else:
+                    games.append(Game(a1.name, a2.name, winner=a2.name))
+            elif a2.name.startswith('p') and a1.name.startswith('p') == False:
+                win = random.random() < 1 # 70% change of winning
+                if win:
+                    games.append(Game(a1.name, a2.name, winner=a2.name))
+                else:
+                    games.append(Game(a1.name, a2.name, winner=a1.name))
+            elif a1.name.startswith('a') and a2.name.startswith('a') == False:
+                win = random.random() < 0.7 # 70% change of winning
+                if win:
+                    games.append(Game(a1.name, a2.name, winner=a1.name))
+                else:
+                    games.append(Game(a1.name, a2.name, winner=a2.name))
+            elif a2.name.startswith('a') and a1.name.startswith('a') == False:
+                win = random.random() < 0.7 # 70% change of winning
+                if win:
+                    games.append(Game(a1.name, a2.name, winner=a2.name))
+                else:
+                    games.append(Game(a1.name, a2.name, winner=a1.name))
+
+            else:
+                win = random.random() < 0.5
+                if win:
+                    games.append(Game(a1.name, a2.name, winner=a1.name))
+                else:
+                    games.append(Game(a1.name, a2.name, winner=a2.name))
+        
+        return games, 0, 0, 0
+
+    class EEnv:
+        num_envs = 5
+
+    class PPloyo:
+        def __init__(self, name):
+            self.name = name
+
+    players = ['a1', 'a2', 'a3', 'hello', 'meme', 'review', 'kappa', 'pacifica', 'seth rich']
+    myArr = []
+    for kk in players:
+        myArr.append(PPloyo(kk))
+
+    mmrs = calculate_mmr_values(myArr, EEnv, play_func, total_games=400)
+
+    print(">>> Advanced tests completed successfully.")

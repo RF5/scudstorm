@@ -19,9 +19,9 @@ summary = tf.contrib.summary
 ##############################
 ###### TRAINING CONFIG #######
 n_generations = 61#100
-trunc_size = 8#4
+trunc_size = 6#4
 scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
-invalid_act_penalty_dense = -2
+invalid_act_penalty_dense = -4
 invalid_act_penalty_binary = -0.01
 
 ## Refbot/opponent upgrading config
@@ -32,13 +32,13 @@ refbot_queue_length = 25
 # [elite_additional_episodes] episodes (averaging rewards over them) to find the
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
-elite_additional_episodes = 1#4
-n_elite_in_royale = 5
+elite_additional_episodes = 4#4
+n_elite_in_royale = 4
 
-max_episode_length = 200#90
+max_episode_length = 130#90
 gamma = 0.99 # reward decay. 
 gamma_func = lambda x : 0.03*x + 0.96
-n_population = 10#100
+n_population = 72#100
 sigma = 0.0022 # guassian std scaling
 
 scud_debug = False
@@ -56,6 +56,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     #failed_episodes = 0
     #early_episodes = 0
     refbot_back_ind = 1
+    elite_overthrows = 0
 
     ## Setting up logs
     writer = summary.create_file_writer(util.get_logdir('train8th'), flush_millis=10000)
@@ -154,9 +155,11 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             summary.scalar('main_rollout/early_eps', rollout_info['early_eps'])
             summary.scalar('main_rollout/failed_eps', rollout_info['failed_eps'])
 
-            summary.histogram('main_rollout/ep_lengths', rollout_info['ep_lengths'])
-            summary.scalar('main_rollout/mean_ep_length', np.mean(rollout_info['ep_lengths']))
+            if len(rollout_info['ep_lengths']) > 0:
+                summary.histogram('main_rollout/ep_lengths', rollout_info['ep_lengths'])
+                summary.scalar('main_rollout/mean_ep_length', np.mean(rollout_info['ep_lengths']))
         
+        print("Main stats: agent wins - {} | refbot wins - {} | Early - {}".format(rollout_info['agentWins'], rollout_info['refbotWins'], rollout_info['early_eps']))
         for a in agents[:trunc_size]:
             print(a.name, " with fitness score: ", a.fitness_score)
 
@@ -177,6 +180,8 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         elo_ags, additional_steps, rollout_info = evaluate_fitness(env, elite_candidates, refbot, runs=elite_additional_episodes)
         total_steps += additional_steps
         elo_ags = sorted(elo_ags, key = lambda agent : agent.fitness_score, reverse=True)
+        if elite != elo_ags[0]:
+            elite_overthrows += 1
         elite = elo_ags[0]
 
         #partition_stopwatch.lap('elite battle royale')
@@ -201,6 +206,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             summary.scalar('time/wall_clock_time', total_s.deltaT())
             summary.scalar('time/single_gen_time', s.deltaT())
             summary.scalar('time/total_game_steps', total_steps)
+            summary.scalar('time/elite_overthrows', elite_overthrows)
 
             summary.scalar('elite_rollout/agentWins', rollout_info['agentWins'])
             summary.scalar('elite_rollout/refbotWins', rollout_info['refbotWins'])
@@ -208,10 +214,11 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             summary.scalar('elite_rollout/early_eps', rollout_info['early_eps'])
             summary.scalar('elite_rollout/failed_eps', rollout_info['failed_eps'])
 
-            summary.histogram('elite_rollout/ep_lengths', rollout_info['ep_lengths'])
-            summary.scalar('elite_rollout/mean_ep_length', np.mean(rollout_info['ep_lengths']))
+            if len(rollout_info['ep_lengths']) > 0:
+                summary.histogram('elite_rollout/ep_lengths', rollout_info['ep_lengths'])
+                summary.scalar('elite_rollout/mean_ep_length', np.mean(rollout_info['ep_lengths']))
 
-            summary.scalar('hyperparameters/refbot_back_ind', refbot_back_ind)
+            summary.scalar('hyperparameters/refbot_back_ind', refbot_back_ind)            
 
         #################################
         ## Replacing reference bot
@@ -220,7 +227,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             del refbot_queue[0]
             
             refbot_back_ind = np.random.random_integers(0, refbot_queue_length-1)
-            print(str('='*50) + '\n' + '">> STORM >> Upgrading refbot (to pos ' + str(refbot_back_ind) + ') now.\n' + str('='*50) )
+            print(str('='*50) + '\n' + '>> STORM >> Upgrading refbot (to pos ' + str(refbot_back_ind) + ') now.\n' + str('='*50) )
             #good_params = agents[trunc_size-1].get_flat_weights()
             good_params = agents[np.random.random_integers(0, trunc_size-1)].get_flat_weights()
             toback.set_flat_weights(good_params)

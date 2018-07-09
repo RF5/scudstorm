@@ -248,6 +248,9 @@ class Scud(object):
                 path = os.path.join(filepath, str(savename))
         self.model = tf.keras.models.load_model(path, custom_objects=custom_keras_layers)
         print(">> SCUD >> ", self.name ," had model restored from file ", str(path)[-60:])
+
+    def __str__(self):
+        return "SCUD2 [Name: {:20} | Masking: {:3} | Refbot pos: {:2d}]".format(self.name, self.mask_output, self.refbot_position)
     
 
 if __name__ == '__main__':

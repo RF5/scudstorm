@@ -139,7 +139,7 @@ def main(mode):
                 print('>> manager >> just took step {}. Took: {}'.format(i, ss.delta))
                 time.sleep(0.1)
 
-            #runner.run_battle(agents[0], refbot, env)
+            runner.run_battle(agents[0], refbot, env)
 
         except Exception as err:
             try:
