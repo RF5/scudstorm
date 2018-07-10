@@ -61,6 +61,7 @@ def fight(env, agent1, agent2, n_fights, max_steps, debug=False):
         for a in cur_playing_agents:
             a.fitness_score = 0
             a.mask_output = False
+            agent2.mask_output = False
 
         ## TODO: Modify this for loop to be able to end early for games which finish early
         while step < max_steps:
@@ -134,39 +135,39 @@ def run_battle(a1, a2, env):
 
     #elite = a1
     #elite.load(util.get_savedir(), 'elite')
-    a1.load(util.get_savedir('checkpoints'), 'gen50elite.h5')
-    a1.name = 'gen50elite.h5'
+    a1.load(util.get_savedir('checkpoints'), 'gen60elite.h5')
+    a1.name = 'gen60elite.h5'
     #a2.load(util.get_savedir('checkpoints'), 'gen10elite.h5')
+    a2 = StarterBotPrime
 
+    agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, a1, a2, n_fights=16, max_steps=150)
     #refbot_names = os.listdir(util.get_savedir('refbots'))
     #refbot_names = sorted(refbot_names, reverse=True)
-
-    agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, a1, StarterBotPrime, n_fights=12, max_steps=110)
-    #print("Agent1Wins: ", agent1Wins)
-    #print("Agent2Wins: ", agent2Wins)
-    print("[AGENT1] Elite (" + 'gen50elite.h5' + ") wins: ", agent1Wins)
+    print("[AGENT1] Elite (" + 'gen60elite.h5' + ") wins: ", agent1Wins)
     print('[AGENT2] StarterBot wins: ', agent2Wins)
     print("EarlyEps: ", early_eps)
     print("FailedEps: ", failed_eps)
     print("Ties: ", ties)
+    
+    # for j in range(len(checkpoint_names)):
+    #     a1.load(util.get_savedir('checkpoints'), checkpoint_names[j])
+    #     a1.name = checkpoint_names[j]
 
-    print("{:20} games: {:5} | wins: {:4} | win rate: {:4.2f}%".format(a1.name, early_eps,
-        agent1Wins, 100*agent1Wins / early_eps))
-
-    print("{:20} games: {:5} | wins: {:4} | win rate: {:4.2f}%".format(a2.name, early_eps,
-        agent2Wins, 100*agent2Wins / early_eps))
-
-    # for agent_name in checkpoint_names:
-    #     a2.load(util.get_savedir('checkpoints'), agent_name)
-
-    #     agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, elite, a2, n_fights=4, max_steps=90, debug=False)
+    #     agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, a1, a2, n_fights=16, max_steps=150)
     #     #print("Agent1Wins: ", agent1Wins)
     #     #print("Agent2Wins: ", agent2Wins)
-    #     print("Elite (" + 'elite.h5' + ") wins: ", agent1Wins)
-    #     print(str(agent_name) + ' wins: ', agent2Wins)
+    #     print("[AGENT1] Elite (" + 'gen50elite.h5' + ") wins: ", agent1Wins)
+    #     print('[AGENT2] StarterBot wins: ', agent2Wins)
     #     print("EarlyEps: ", early_eps)
     #     print("FailedEps: ", failed_eps)
     #     print("Ties: ", ties)
+
+    #     print("{:20} games: {:5} | wins: {:4} | win rate: {:4.2f}%".format(a1.name, early_eps,
+    #         agent1Wins, 100*agent1Wins / early_eps))
+
+    #     print("{:20} games: {:5} | wins: {:4} | win rate: {:4.2f}%".format(a2.name, early_eps,
+    #         agent2Wins, 100*agent2Wins / early_eps))
+
 
 def calculate_mmr_values(players, env, fight_fn, total_games=10, game_max_steps=150):
     # players should be a list of agents
@@ -180,11 +181,11 @@ def calculate_mmr_values(players, env, fight_fn, total_games=10, game_max_steps=
     all_games = []
 
     for i in range(total_games):
-        time.sleep(0.1)
         matchups = random.sample(all_possible_matchups, env.num_envs)
         #p2 = players[-1]
+        #p1 = players[0]
         #p1s = random.choices(players[:-1], k=env.num_envs)
-        #matchups = [(players[0], players[1]) for _ in range(env.num_envs)]
+        #matchups = [(p1s[i], p2) for i in range(env.num_envs)]
 
         games_arr, early_eps, failed_eps, ties = fight_fn(env, matchups, max_steps=game_max_steps)
         
@@ -222,7 +223,7 @@ def calculate_mmr_values(players, env, fight_fn, total_games=10, game_max_steps=
 
 def mmr_from_checkpoints(env):
     checkpoint_names = os.listdir(util.get_savedir('checkpoints'))
-    checkpoint_names = sorted(checkpoint_names, reverse=True)[:3]
+    checkpoint_names = sorted(checkpoint_names, reverse=True)
 
     agents = [Scud(name=str(name)) for name in checkpoint_names]
     
@@ -235,7 +236,7 @@ def mmr_from_checkpoints(env):
     print("ranking agents:")
     for a in agents:
         print(str(a))
-    mmrs = calculate_mmr_values(agents, env, parallel_fight, total_games=20)
+    mmrs = calculate_mmr_values(agents, env, parallel_fight, total_games=30)
     ## Will print out something like
     # ============================================================
     # MMR Rankings
@@ -247,14 +248,6 @@ def mmr_from_checkpoints(env):
     # Name: gen20elite.h5             | MMR:  952.55 | Simulated matches:  10
     # Name: gen50elite.h5             | MMR:  792.01 | Simulated matches:  18
 
-    # ============================================================
-    # MMR Rankings
-    # ------------------------------------------------------------
-    # Name: StarterBotPrime           | MMR: 1294.11 | Simulated matches:  35
-    # Name: gen30elite.h5             | MMR: 1068.41 | Simulated matches:  24
-    # Name: gen40elite.h5             | MMR:  867.57 | Simulated matches:  28
-    # Name: gen50elite.h5             | MMR:  769.91 | Simulated matches:  23
-
 def parallel_fight(env, matchups, max_steps, debug=False):
     a1s = []
     a2s = []
@@ -262,6 +255,7 @@ def parallel_fight(env, matchups, max_steps, debug=False):
         a1s.append(a)
         a2s.append(b)
     #a1s, a2s = [(e, f,) for e, f in zip(*matchups)]
+    
 
     n_envs = env.num_envs
     assert len(matchups) == n_envs, "agent lengths must be same as env"
@@ -281,9 +275,9 @@ def parallel_fight(env, matchups, max_steps, debug=False):
     #obs = env.get_base_obs()
     obs = util.get_initial_obs(n_envs)
 
-    for aa, bb in matchups:
-            a.fitness_score = 0
-            a.mask_output = False
+    for aa, bb in matchups:      
+        aa.mask_output = False
+        bb.mask_output = False
 
     while step < max_steps:
         pbar.show(step)

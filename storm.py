@@ -39,7 +39,7 @@ max_episode_length = 130#90
 gamma = 0.99 # reward decay. 
 gamma_func = lambda x : 0.03*x + 0.96
 n_population = 72#100
-sigma = 0.0022 # guassian std scaling
+sigma = 0.0021 # guassian std scaling
 
 scud_debug = False
 verbose_training = False
@@ -57,6 +57,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     #early_episodes = 0
     refbot_back_ind = 1
     elite_overthrows = 0
+    elite = None
 
     ## Setting up logs
     writer = summary.create_file_writer(util.get_logdir('train8th'), flush_millis=10000)
@@ -238,8 +239,11 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             ## Sampling refbot uniformly from past <refbot_queue_length> generation's agents
             refbot = refbot_queue[refbot_back_ind]
 
-            for i, bot in enumerate(refbot_queue):
-                bot.refbot_position = i
+            for meme_review, inner_refbot in enumerate(refbot_queue):
+                inner_refbot.refbot_position = meme_review
+            
+            #for bot in refbot_queue:
+            #    print("Bot ", bot.name, ' now has refbot pos: ', bot.refbot_position)
 
         #################################
         ## Saving agents periodically
@@ -268,8 +272,9 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     for i, ag in enumerate(agents[:trunc_size]):
         ag.save(util.get_savedir('truncFinals'), 'finalTrunc' + str(i))
 
-    for refAgent in refbot_queue:
-        refAgent.save(util.get_savedir('refbots'), 'finalRefbot' + 'Pos' + str(refAgent.refbot_position))
+    print("End refbot queue: ", len(refbot_queue))
+    for identity, refAgent in enumerate(refbot_queue):
+        refAgent.save(util.get_savedir('refbots'), 'finalRefbot{:03d}'.format(identity))
 
 def mutate(parent, child, g):
     old_params = parent.get_flat_weights()

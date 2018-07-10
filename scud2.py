@@ -190,6 +190,17 @@ class Scud(object):
         if self.debug:
             log("Getting non-spatial action")
             s = Stopwatch()
+
+        net = Layers.Conv2D(32, [3, 3],
+            strides=1,
+            padding='SAME',
+            activation=tf.nn.relu,
+            name="non_spat_conv1")(net)
+        net = Layers.Conv2D(4, [1, 1],
+            strides=1,
+            padding='SAME',
+            activation=tf.nn.relu,
+            name="non_spat_conv2")(net)
         flatten = Layers.Flatten()(net)
         non_spatial = Layers.Dense(256,
                     activation=tf.nn.relu,
@@ -236,7 +247,10 @@ class Scud(object):
                 path = os.path.join(filepath, str(savename))
         os.makedirs(filepath, exist_ok=True)
         self.model.save(path, include_optimizer=False)
-        print(">> SCUD >> ", self.name, " saved model to file ", str(path)[-60:])
+        if self.refbot_position != -1:
+            print(">> SCUD >> ", self.name, "(refbot pos ", self.refbot_position, ") saved model to file ", str(path)[-50:])
+        else:
+            print(">> SCUD >> ", self.name, " saved model to file ", str(path)[-50:])
     
     def load(self, filepath, savename):
         if savename is None:
@@ -247,7 +261,10 @@ class Scud(object):
             else:
                 path = os.path.join(filepath, str(savename))
         self.model = tf.keras.models.load_model(path, custom_objects=custom_keras_layers)
-        print(">> SCUD >> ", self.name ," had model restored from file ", str(path)[-60:])
+        if self.refbot_position != -1:
+            print(">> SCUD >> ", self.name ,"(refbot pos ", self.refbot_position, ") had model restored from file ", str(path)[-50:])
+        else:
+            print(">> SCUD >> ", self.name ," had model restored from file ", str(path)[-50:])
 
     def __str__(self):
         return "SCUD2 [Name: {:20} | Masking: {:3} | Refbot pos: {:2d}]".format(self.name, self.mask_output, self.refbot_position)
