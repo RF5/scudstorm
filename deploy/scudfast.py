@@ -2,6 +2,7 @@
 Scudstorm fast - for tournamet runtime
 Upgrades:
 - Camo Netting
+- Anthrax Beta
 
 Currently takes ~1.37s when running on medium-low spec PC. (GTX 680, i7-3770k)
 Author: Matthew Baas

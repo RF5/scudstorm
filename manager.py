@@ -20,7 +20,7 @@ from common import util
 import constants
 
 # Config vars
-n_envs = 8 # 10 or 8 seems to work nice for C5x4large
+n_envs = 10 # 10 or 8 seems to work nice for C5x4large
 console_debug = False
 train = True
 mode_options = ['train', 'resume', 'test', 'rank']
@@ -92,7 +92,7 @@ def main(mode):
         try:
             actions = no_act_vec
             agents = [Scud(name=str(i), debug=False) for i in range(n_envs)]
-
+            print(agents[0].model.count_params())
             # checkpoint_names = os.listdir(util.get_savedir('checkpoints'))
             # checkpoint_names = sorted(checkpoint_names, reverse=True)
 
@@ -104,7 +104,6 @@ def main(mode):
             env.reset()
             obs = util.get_initial_obs(n_envs)
             #print("manager obs shape = ", ob.shape)
-            env.reset()
             ref_act = None
             for i in range(5):
                 ss = Stopwatch()

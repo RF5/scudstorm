@@ -135,16 +135,18 @@ def run_battle(a1, a2, env):
 
     #elite = a1
     #elite.load(util.get_savedir(), 'elite')
-    a1.load(util.get_savedir('checkpoints'), 'gen60elite.h5')
-    a1.name = 'gen60elite.h5'
-    #a2.load(util.get_savedir('checkpoints'), 'gen10elite.h5')
-    a2 = StarterBotPrime
+    a1.load(util.get_savedir('checkpoints'), 'gen40elite.h5')
+    a1.name = 'gen40elite.h5'
 
-    agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, a1, a2, n_fights=16, max_steps=150)
+    a2.load(util.get_savedir('checkpoints'), 'gen30elite.h5')
+    a2.name = 'gen30elite.h5'
+    #a2 = StarterBotPrime
+
+    agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, a1, a2, n_fights=2, max_steps=150)
     #refbot_names = os.listdir(util.get_savedir('refbots'))
     #refbot_names = sorted(refbot_names, reverse=True)
-    print("[AGENT1] Elite (" + 'gen60elite.h5' + ") wins: ", agent1Wins)
-    print('[AGENT2] StarterBot wins: ', agent2Wins)
+    print("[AGENT1] Elite (" + a1.name + ") wins: ", agent1Wins)
+    print('[AGENT2] StarterBot (' + a2.name + ') wins: ', agent2Wins)
     print("EarlyEps: ", early_eps)
     print("FailedEps: ", failed_eps)
     print("Ties: ", ties)
@@ -181,11 +183,11 @@ def calculate_mmr_values(players, env, fight_fn, total_games=10, game_max_steps=
     all_games = []
 
     for i in range(total_games):
-        matchups = random.sample(all_possible_matchups, env.num_envs)
-        #p2 = players[-1]
-        #p1 = players[0]
-        #p1s = random.choices(players[:-1], k=env.num_envs)
-        #matchups = [(p1s[i], p2) for i in range(env.num_envs)]
+        #matchups = random.sample(all_possible_matchups, env.num_envs)
+        p2 = players[-1]
+        p1 = players[0]
+        p1s = random.choices(players[:-1], k=env.num_envs)
+        matchups = [(p1s[i], p2) for i in range(env.num_envs)]
 
         games_arr, early_eps, failed_eps, ties = fight_fn(env, matchups, max_steps=game_max_steps)
         
@@ -236,17 +238,13 @@ def mmr_from_checkpoints(env):
     print("ranking agents:")
     for a in agents:
         print(str(a))
-    mmrs = calculate_mmr_values(agents, env, parallel_fight, total_games=30)
+    mmrs = calculate_mmr_values(agents, env, parallel_fight, total_games=10)
     ## Will print out something like
     # ============================================================
     # MMR Rankings
     # ------------------------------------------------------------
     # Name: StarterBotPrime           | MMR: 1256.71 | Simulated matches:  27
     # Name: gen10elite.h5             | MMR: 1032.77 | Simulated matches:  16
-    # Name: gen40elite.h5             | MMR:  991.67 | Simulated matches:  10
-    # Name: gen30elite.h5             | MMR:  974.28 | Simulated matches:   7
-    # Name: gen20elite.h5             | MMR:  952.55 | Simulated matches:  10
-    # Name: gen50elite.h5             | MMR:  792.01 | Simulated matches:  18
 
 def parallel_fight(env, matchups, max_steps, debug=False):
     a1s = []

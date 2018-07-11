@@ -13,33 +13,34 @@ from scud2 import Scud
 import numpy as np
 import random
 import tf_logging_util
+import json
 
 summary = tf.contrib.summary
 
 ##############################
 ###### TRAINING CONFIG #######
 n_generations = 61#100
-trunc_size = 6#4
+trunc_size = 8#4
 scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
-invalid_act_penalty_dense = -4
+invalid_act_penalty_dense = -2
 invalid_act_penalty_binary = -0.01
 
 ## Refbot/opponent upgrading config
 replace_refbot_every = 1
-refbot_queue_length = 25
+refbot_queue_length = 30
 
 # the top [n_elite_in_royale] of agents will battle it out over an additional
 # [elite_additional_episodes] episodes (averaging rewards over them) to find the
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
 elite_additional_episodes = 4#4
-n_elite_in_royale = 4
+n_elite_in_royale = 5
 
-max_episode_length = 130#90
+max_episode_length = 140#90
 gamma = 0.99 # reward decay. 
 gamma_func = lambda x : 0.03*x + 0.96
-n_population = 72#100
-sigma = 0.0021 # guassian std scaling
+n_population = 90#100
+sigma = 0.0022 # guassian std scaling
 
 scud_debug = False
 verbose_training = False
@@ -58,9 +59,9 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     refbot_back_ind = 1
     elite_overthrows = 0
     elite = None
-
+    starting_gen = 0 # default startin generation number. Is overwritten if resuming
     ## Setting up logs
-    writer = summary.create_file_writer(util.get_logdir('train8th'), flush_millis=10000)
+    writer = summary.create_file_writer(util.get_logdir('train11thB'), flush_millis=10000)
     writer.set_as_default()
     global_step = tf.train.get_or_create_global_step()
 
@@ -79,10 +80,22 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     ## DOES NOT WORK WITH EAGER EXECUTION
     # with summary.always_record_summaries():
     #     summary.graph(agents[0].model.graph)
-
+    total_s = Stopwatch()
     ########################################
     ## Restoring from last training session
     if resume_trianing:
+        # loading up config from last train finish
+        print("Restoring progress config from last run...")
+        config_path = os.path.join(util.get_savedir(), 'progress.json')
+        conf = json.load(open(config_path, 'r'))
+        
+        starting_gen = conf['gen_at_end'] + 1
+        elite_overthrows = conf['elite_overthrows']
+        total_steps = conf['total_steps'] 
+        total_s.startime = conf['clock_start_time']
+        global_step.assign(starting_gen)
+
+        # Loading truncs, elite and refbot
         print(str('='*50) + '\n' + '>> STORM >> Resuming training.\n' + str('='*50))
         trunc_names = os.listdir(util.get_savedir('truncFinals'))
         trunc_names = sorted(trunc_names, reverse=True)
@@ -102,12 +115,11 @@ def train(env, n_envs, no_op_vec, resume_trianing):
 
         print(">> STORM >> Successfully restored from last checkpoints")
 
-    print(str('='*50) + '\n' + 'Beginning training\n' + str('='*50) )
+    print(str('='*50) + '\n' + 'Beginning training (at gen ' + str(starting_gen) + ')\n' + str('='*50))
     s = Stopwatch()
-    total_s = Stopwatch()
 
     #partition_stopwatch = Stopwatch()
-    for g in range(n_generations):
+    for g in range(starting_gen, n_generations):
         #####################
         ## Hyperparameter annealing
         gamma = gamma_func((g+1)/n_generations)
@@ -253,8 +265,9 @@ def train(env, n_envs, no_op_vec, resume_trianing):
                 for refAgent in refbot_queue:
                     refAgent.save(util.get_savedir('refbots'), 'gen' + str(g) + 'pos' + str(refAgent.refbot_position))
 
-            for i, truncAgent in enumerate(agents[:trunc_size]):
-                truncAgent.save(util.get_savedir('truncs'), 'gen' + str(g) + 'agent' + str(i))
+            if trunc_size < 5:
+                for i, truncAgent in enumerate(agents[:trunc_size]):
+                    truncAgent.save(util.get_savedir('truncs'), 'gen' + str(g) + 'agent' + str(i))
             
         global_step.assign_add(1)
 
@@ -275,6 +288,19 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     print("End refbot queue: ", len(refbot_queue))
     for identity, refAgent in enumerate(refbot_queue):
         refAgent.save(util.get_savedir('refbots'), 'finalRefbot{:03d}'.format(identity))
+
+    ##########################
+    ## Saving progress.config
+    conf = {}
+    conf['gen_at_end'] = g
+    conf['gamma_at_end'] = gamma
+    conf['elite_overthrows'] = elite_overthrows
+    conf['total_steps'] = total_steps
+    conf['clock_start_time'] = total_s.startime
+    path = os.path.join(util.get_savedir(), 'progress.json')
+    with open(path, 'w') as config_file:
+        config_file.write(json.dumps(conf))
+    print(">> STORM >> Saved progress.config to: ", path)
 
 def mutate(parent, child, g):
     old_params = parent.get_flat_weights()

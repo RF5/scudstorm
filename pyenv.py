@@ -25,17 +25,19 @@ game_config_name = 'game-config.properties'
 wrapper_out_filename = 'wrapper_out.txt'
 state_name = 'state.json'
 bot_file_name = 'bot.json'
-per_step_reward_penalty = -20
+per_step_reward_penalty = -15
 
 binary_step_penalty = -0.01
 
-general_reward_scaling_factor = 0.30
+general_reward_scaling_factor = 0.34
 
 binary_win_reward = 1.0
-dense_win_reward = 500
+dense_win_reward = 600
 
 possible_reward_modes = ['dense', 'binary']
 reward_mode = possible_reward_modes[0]
+
+keep_log_folder_override = False
 
 class Env():
 
@@ -486,7 +488,10 @@ class Env():
         if self.debug:
             print("Removing folder: ", log_path)
         try:
-            shutil.rmtree(log_path)
+            if keep_log_folder_override == False:
+                shutil.rmtree(log_path)
+            else:
+                print(">> PYENV >> OVERRIDE - Keeping log files.")
             time.sleep(0.1)
         except Exception:
             print(">> PYENV >> Exception occured while removing matchlogs folder")

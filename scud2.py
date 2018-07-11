@@ -15,6 +15,7 @@ from common.metrics import log, Stopwatch
 import numpy as np
 import common.util as util
 from common.custom_layers import SampleCategoricalLayer, OneHotLayer
+from common import custom_layers
 import constants
 from common import obs_parsing
 
@@ -150,26 +151,16 @@ class Scud(object):
         broadcast_stats2 = Layers.Reshape((k[1], k[2], constants.n_base_actions))(broadcast_stats)
         net = Layers.concatenate([net, broadcast_stats2], axis=-1) # (?, 8, 8, 38)
 
-        net = Layers.Conv2D(32, [3, 3],
+
+        net = Layers.Conv2D(64, [3, 3],
             strides=1,
             padding='SAME',
             activation=tf.nn.relu,
             name="finalConv")(net)
-        net = Layers.Conv2D(8, [1, 1],
-            strides=1,
-            padding='SAME',
-            activation=tf.nn.relu,
-            name="reduce1")(net)
-        net = Layers.Conv2D(32, [3, 3],
-            strides=1,
-            padding='SAME',
-            activation=tf.nn.relu,
-            name="finalConv2")(net)
-        net = Layers.Conv2D(16, [3, 3],
-            strides=1,
-            padding='SAME',
-            activation=tf.nn.relu,
-            name="finalConv3")(net)
+
+        net = custom_layers.add_inception_resnet_B(net, '1a1')
+        net = custom_layers.add_inception_resnet_B(net, '2a1')
+
         net = Layers.Conv2D(1, [1, 1],
             strides=1,
             padding='SAME',
@@ -191,12 +182,10 @@ class Scud(object):
             log("Getting non-spatial action")
             s = Stopwatch()
 
-        net = Layers.Conv2D(32, [3, 3],
-            strides=1,
-            padding='SAME',
-            activation=tf.nn.relu,
-            name="non_spat_conv1")(net)
-        net = Layers.Conv2D(4, [1, 1],
+        net = custom_layers.add_inception_resnet_B(net, '1a0')
+        net = custom_layers.add_inception_resnet_B(net, '2a0')
+
+        net = Layers.Conv2D(8, [1, 1],
             strides=1,
             padding='SAME',
             activation=tf.nn.relu,
@@ -221,13 +210,21 @@ class Scud(object):
             s = Stopwatch()
         with tf.name_scope("adding_base") as scope:
             net = self.input
-            for i in range(3):
-                net = (Layers.Conv2D(32, [3, 3],
-                            strides=1,
-                            padding='SAME',
-                            activation=tf.nn.relu,
-                            name="conv" + str(i)))(net) # ok well this takes 5 seconds
 
+            net = Layers.Conv2D(32, [3, 3], strides=1, padding='SAME', activation=tf.nn.relu, name="baseConv1")(net)
+            net = Layers.Conv2D(32, [3, 3], strides=1, padding='SAME', activation=tf.nn.relu, name="baseConv2")(net)
+            net = Layers.Conv2D(64, [3, 3], strides=1, padding='SAME', activation=tf.nn.relu, name="baseConv3")(net)
+
+            net_a = Layers.Conv2D(64, [1, 1], strides=1, padding='SAME', activation=tf.nn.relu, name="baseConv4a")(net)
+            net_a = Layers.Conv2D(96, [3, 3], strides=1, padding='SAME', activation=tf.nn.relu, name="baseConv5a")(net_a)
+
+            net_b = Layers.Conv2D(64, [1, 1], strides=1, padding='SAME', activation=tf.nn.relu, name="baseConv4b")(net)
+            net_b = Layers.Conv2D(64, [8, 1], strides=1, padding='SAME', activation=tf.nn.relu, name="baseConv5b")(net_b)
+            net_b = Layers.Conv2D(64, [1, 8], strides=1, padding='SAME', activation=tf.nn.relu, name="baseConv6b")(net_b)
+            net_b = Layers.Conv2D(96, [3, 3], strides=1, padding='SAME', activation=tf.nn.relu, name="baseConv7b")(net_b)
+
+            net = custom_layers.add_inception_resnet_A(net, 'A1')
+            net = custom_layers.add_inception_resnet_A(net, 'A2')
         if self.debug:
             log("Finished adding base. Took: " + s.delta)
 
