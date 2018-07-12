@@ -183,11 +183,11 @@ def calculate_mmr_values(players, env, fight_fn, total_games=10, game_max_steps=
     all_games = []
 
     for i in range(total_games):
-        #matchups = random.sample(all_possible_matchups, env.num_envs)
-        p2 = players[-1]
-        p1 = players[0]
-        p1s = random.choices(players[:-1], k=env.num_envs)
-        matchups = [(p1s[i], p2) for i in range(env.num_envs)]
+        matchups = random.sample(all_possible_matchups, env.num_envs)
+        # p2 = players[-1]
+        # p1 = players[0]
+        # p1s = random.choices(players[:-1], k=env.num_envs)
+        # matchups = [(p1s[i], p2) for i in range(env.num_envs)]
 
         games_arr, early_eps, failed_eps, ties = fight_fn(env, matchups, max_steps=game_max_steps)
         
@@ -238,7 +238,7 @@ def mmr_from_checkpoints(env):
     print("ranking agents:")
     for a in agents:
         print(str(a))
-    mmrs = calculate_mmr_values(agents, env, parallel_fight, total_games=10)
+    mmrs = calculate_mmr_values(agents, env, parallel_fight, total_games=50)
     ## Will print out something like
     # ============================================================
     # MMR Rankings

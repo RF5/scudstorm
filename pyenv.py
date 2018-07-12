@@ -29,10 +29,10 @@ per_step_reward_penalty = -15
 
 binary_step_penalty = -0.01
 
-general_reward_scaling_factor = 0.34
+general_reward_scaling_factor = 0.2
 
 binary_win_reward = 1.0
-dense_win_reward = 600
+dense_win_reward = 650
 
 possible_reward_modes = ['dense', 'binary']
 reward_mode = possible_reward_modes[0]

@@ -20,9 +20,9 @@ summary = tf.contrib.summary
 ##############################
 ###### TRAINING CONFIG #######
 n_generations = 61#100
-trunc_size = 8#4
+trunc_size = 7#4
 scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
-invalid_act_penalty_dense = -2
+invalid_act_penalty_dense = -3
 invalid_act_penalty_binary = -0.01
 
 ## Refbot/opponent upgrading config
@@ -34,13 +34,13 @@ refbot_queue_length = 30
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
 elite_additional_episodes = 4#4
-n_elite_in_royale = 5
+n_elite_in_royale = 4
 
 max_episode_length = 140#90
 gamma = 0.99 # reward decay. 
-gamma_func = lambda x : 0.03*x + 0.96
-n_population = 90#100
-sigma = 0.0022 # guassian std scaling
+gamma_func = lambda x : 0.022*x + 0.97
+n_population = 96#100
+sigma = 0.002 # guassian std scaling
 
 scud_debug = False
 verbose_training = False
@@ -61,7 +61,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     elite = None
     starting_gen = 0 # default startin generation number. Is overwritten if resuming
     ## Setting up logs
-    writer = summary.create_file_writer(util.get_logdir('train11thB'), flush_millis=10000)
+    writer = summary.create_file_writer(util.get_logdir('train12A'), flush_millis=10000)
     writer.set_as_default()
     global_step = tf.train.get_or_create_global_step()
 
@@ -106,6 +106,11 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         refbot_names = os.listdir(util.get_savedir('refbots'))
         refbot_names = sorted(refbot_names, reverse=False)
         refbot_q_names = refbot_names[-refbot_queue_length:]
+        # sec = 0
+        # for i in range(5, refbot_queue_length):
+        #     refbot_queue[i].load(util.get_savedir('refbots'), refbot_q_names[sec])
+        #     refbot_queue[i].refbot_position = i
+        #     sec = sec + 1
         for i in range(refbot_queue_length):
             refbot_queue[i].load(util.get_savedir('refbots'), refbot_q_names[i])
             refbot_queue[i].refbot_position = i
@@ -119,7 +124,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
     s = Stopwatch()
 
     #partition_stopwatch = Stopwatch()
-    for g in range(starting_gen, n_generations):
+    for g in range(starting_gen, starting_gen + n_generations):
         #####################
         ## Hyperparameter annealing
         gamma = gamma_func((g+1)/n_generations)
@@ -169,11 +174,17 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             summary.scalar('main_rollout/failed_eps', rollout_info['failed_eps'])
 
             if len(rollout_info['ep_lengths']) > 0:
+                mean_ep_lengg = np.mean(rollout_info['ep_lengths'])
                 summary.histogram('main_rollout/ep_lengths', rollout_info['ep_lengths'])
-                summary.scalar('main_rollout/mean_ep_length', np.mean(rollout_info['ep_lengths']))
+                summary.scalar('main_rollout/mean_ep_length', mean_ep_lengg)
+                print("Mean ep length: ", mean_ep_lengg)
+
+            if len(rollout_info['agent_actions']) > 0:
+                summary.histogram('main_rollout/agent_a0', rollout_info['agent_actions'])
+                summary.histogram('main_rollout/agent_a0_first15steps', rollout_info['agent_early_actions'])
         
         print("Main stats: agent wins - {} | refbot wins - {} | Early - {}".format(rollout_info['agentWins'], rollout_info['refbotWins'], rollout_info['early_eps']))
-        for a in agents[:trunc_size]:
+        for a in agents[:5]:
             print(a.name, " with fitness score: ", a.fitness_score)
 
         ############################################
@@ -228,14 +239,20 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             summary.scalar('elite_rollout/failed_eps', rollout_info['failed_eps'])
 
             if len(rollout_info['ep_lengths']) > 0:
+                mean_ep_lengE = np.mean(rollout_info['ep_lengths'])
                 summary.histogram('elite_rollout/ep_lengths', rollout_info['ep_lengths'])
-                summary.scalar('elite_rollout/mean_ep_length', np.mean(rollout_info['ep_lengths']))
+                summary.scalar('elite_rollout/mean_ep_length', mean_ep_lengE)
+                print("Elite mean ep length: ", mean_ep_lengE)
+
+            if len(rollout_info['agent_actions']) > 0:
+                summary.histogram('elite_rollout/agent_a0', rollout_info['agent_actions'])
+                summary.histogram('elite_rollout/agent_a0_first15steps', rollout_info['agent_early_actions'])
 
             summary.scalar('hyperparameters/refbot_back_ind', refbot_back_ind)            
 
         #################################
         ## Replacing reference bot
-        if g % replace_refbot_every == 0 and g != 0:
+        if g % replace_refbot_every == 0:
             toback = refbot
             del refbot_queue[0]
             
@@ -335,7 +352,9 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
         'agentWins': 0, 
         'refbotWins': 0, 
         'ties': 0,
-        'ep_lengths': []}
+        'ep_lengths': [],
+        'agent_actions': [],
+        'agent_early_actions': []}
     
 
     while len(queue) > 0:
@@ -364,6 +383,8 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
             if debug:
                 ss = Stopwatch()
             actions = [agent.step(obs[i][0]) for i, agent in enumerate(cur_playing_agents)]
+            
+            
             #ref_actions = [refbot.step(obs[i][1]) for i in range(len(obs))]
             ref_actions = refbot.step(obs[:, 1], batch_predict=True)
 
@@ -404,7 +425,10 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
                                 inner_rew += invalid_act_penalty_dense
 
                     a.fitness_score = inner_rew + gamma*a.fitness_score
-                            
+                    _, _, building_act = actions[i]
+                    rollout_info['agent_actions'].append(building_act)
+                    if step < 15:
+                        rollout_info['agent_early_actions'].append(building_act)
 
                 if 'winner' in ep_infos[i].keys():
                     if ep_infos[i]['winner'] == 'A':

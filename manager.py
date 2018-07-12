@@ -20,7 +20,7 @@ from common import util
 import constants
 
 # Config vars
-n_envs = 10 # 10 or 8 seems to work nice for C5x4large
+n_envs = 8 # 10 or 8 seems to work nice for C5x4large
 console_debug = False
 train = True
 mode_options = ['train', 'resume', 'test', 'rank']
