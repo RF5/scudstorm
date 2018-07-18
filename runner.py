@@ -238,7 +238,7 @@ def mmr_from_checkpoints(env):
     print("ranking agents:")
     for a in agents:
         print(str(a))
-    mmrs = calculate_mmr_values(agents, env, parallel_fight, total_games=50)
+    mmrs = calculate_mmr_values(agents, env, parallel_fight, total_games=60)
     ## Will print out something like
     # ============================================================
     # MMR Rankings

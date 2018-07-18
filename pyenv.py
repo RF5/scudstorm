@@ -25,11 +25,11 @@ game_config_name = 'game-config.properties'
 wrapper_out_filename = 'wrapper_out.txt'
 state_name = 'state.json'
 bot_file_name = 'bot.json'
-per_step_reward_penalty = -15
+per_step_reward_penalty = -10
 
-binary_step_penalty = -0.01
+binary_step_penalty = -0.009
 
-general_reward_scaling_factor = 0.2
+general_reward_scaling_factor = 0.3
 
 binary_win_reward = 1.0
 dense_win_reward = 650
