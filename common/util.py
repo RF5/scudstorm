@@ -8,11 +8,10 @@ import os
 import numpy as np
 import sys
 from common.metrics import log
+import constants
 import json
 
 #debug = True
-## Config stuff that relate to the game engine
-action_names = ['attack', 'defense', 'energy', 'no_op']
 
 def get_logdir(name=None):
 	'''
@@ -27,7 +26,7 @@ def get_logdir(name=None):
 	util_log(log_dir)
 	return log_dir
 
-def get_savedir(name=None):
+def get_savedir(name=None, debug=False):
 	'''
 	returns the save dir corresponding to the supplied name
 	'''
@@ -37,7 +36,8 @@ def get_savedir(name=None):
 	else:
 		save_dir = os.path.join(base_dir, 'saves')
 
-	util_log("saving to " + str(save_dir))
+	if debug:
+		util_log("returning save directory " + str(save_dir))
 	return save_dir
 
 def util_log(msg):
@@ -45,12 +45,12 @@ def util_log(msg):
 
 def write_prep_action(x,y,building, path, debug=True):
 	if debug:
-		util_log("Writing action: x = " + str(x) + ", y = " + str(y) + "\tBuilding = " + action_names[building] + "\tTo:")
+		util_log("Writing action: x = " + str(x) + ", y = " + str(y) + "\tBuilding = " + constants.reverse_action_map[building] + "\tTo:")
 		print(os.path.join(path, 'command2.txt'))
 
 	outfl = open(os.path.join(path, 'command2.txt'),'w')
 
-	if action_names[building] == 'no_op':
+	if constants.reverse_action_map[building] == 'no_op':
 		outfl.write("NO_OP")
 	else:
 		outfl.write(','.join([str(x),str(y),str(building)]))
@@ -65,11 +65,11 @@ def write_action(x,y,building, path, debug=True):
 	regardless of what x and y are
 	'''
 	if debug:
-		util_log("Writing action: x = " + str(x) + ", y = " + str(y) + "\tBuilding = " + action_names[building] + "\tTo:")
+		util_log("Writing action: x = " + str(x) + ", y = " + str(y) + "\tBuilding = " + constants.reverse_action_map[building] + "\tTo:")
 		print(os.path.join(path, 'command.txt'))
 
 	outfl = open('command.txt','w')
-	if action_names[building] == 'no_op':
+	if constants.reverse_action_map[building] == 'no_op':
 		outfl.write("")
 	else:	
 		outfl.write(','.join([str(x),str(y),str(building)]))

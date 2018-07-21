@@ -11,7 +11,7 @@ import sys
 from shutil import copy2
 import traceback
 
-debug = True
+debug = False
 
 def fileLog(msg):
     if debug:
@@ -21,7 +21,6 @@ def fileLog(msg):
 def main():
     try:
         # Config (generics)
-        time.sleep(0.01)
         wrapper_out_filename = 'wrapper_out.txt'
 
         this_dir = os.path.dirname(os.path.abspath(os.path.realpath(__file__))) # inside our running dir
@@ -46,7 +45,7 @@ def main():
                 if k == "2":
                     flag = True
                     break
-                time.sleep(0.03)
+                time.sleep(0.01)
 
         flag = False
         while flag == False:
@@ -59,7 +58,7 @@ def main():
                 if meme is not None and meme != "":
                     flag = True
                     break
-                time.sleep(0.03)
+                time.sleep(0.01)
                     
         if meme == "NO_OP":
             outfl = open('command.txt','w')

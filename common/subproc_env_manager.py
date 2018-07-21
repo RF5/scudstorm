@@ -11,9 +11,9 @@ def worker(remote, parent_remote, env_fn_wrapper):
 		cmd, data = remote.recv()
 		if cmd == 'step':
 			action, p2_act = data
-			ob, rew = env.step(action, p2_act)
+			ob, rew, ep_info = env.step(action, p2_act)
 			
-			remote.send((ob, rew))
+			remote.send((ob, rew, ep_info))
 		elif cmd == 'reset':
 			sucess = env.reset()
 
@@ -78,14 +78,15 @@ class SubprocEnvManager(object):
 			remote.send(('step', (action, p2_act)))
 		results = [remote.recv() for remote in self.remotes]
 		#obs, rews, dones, infos = zip(*results)
-		obs, rews = zip(*results)
+		obs, rews, ep_infos = zip(*results)
 		# for ss in results[0]:
 		# 	print("SUBPROC ENV: ", ss, 'with length: ' + str(len(ss)))
-		#print(len(obs))
-		#print(obs[0].shape)
+		#print(len(ep_infos))
+		#print(ep_infos)
+		# print(obs[0].shape)
 		#print('obs shape', len(obs[0]))
 		#print("ref_obs shape", len(ref_obs[]))
-		return np.stack(obs, axis=0), np.stack(rews, axis=0)
+		return np.stack(obs, axis=0), np.stack(rews, axis=0), np.stack(ep_infos, axis=0)
 
 	def reset(self):
 		self.reset_counter += 1
@@ -96,6 +97,7 @@ class SubprocEnvManager(object):
 		if verbose:
 			print("============\nCLEARED RESET (Reset counter = {})\n============".format(self.reset_counter))
 		#print("\n-----> Reset counter = {}".format(self.reset_counter))
+		time.sleep(0.01)
 		return k
 
 	# def action_spec(self):

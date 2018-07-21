@@ -49,19 +49,22 @@ class ProgressBar(object):
 		self.cur_i = 0
 
 	def show(self, i):
-		frac = (i+1)/self.total
+		frac = i/self.total
 		length = int(frac * 21)
 		sys.stdout.write('\r')
 		sys.stdout.write("[%-20s] %d%%" % ('='*length, 100*frac))
 		sys.stdout.flush()
-		if i >= self.total - 1:
-			print()
 	
 	def increment(self, inc_num):
 		self.cur_i += inc_num
 		self.show(self.cur_i)
 
 	def close(self):
+		frac = 1
+		length = int(frac * 20)
+		sys.stdout.write('\r')
+		sys.stdout.write("[%-20s] %d%%" % ('='*length, 100*frac))
+		sys.stdout.flush()
 		print()
 
 class MovingAverage(object):
