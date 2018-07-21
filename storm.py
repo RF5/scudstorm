@@ -19,27 +19,27 @@ summary = tf.contrib.summary
 
 ##############################
 ###### TRAINING CONFIG #######
-n_generations = 51#100
+n_generations = 50#100
 trunc_size = 8#4
 scoring_method = 'dense' # Possibilities: 'dense' and 'binary'
-invalid_act_penalty_dense = -3.5
+invalid_act_penalty_dense = -1.5
 invalid_act_penalty_binary = -0.005
 
 ## Refbot/opponent upgrading config
 replace_refbot_every = 1
-refbot_queue_length = 45
+refbot_queue_length = 50
 
 # the top [n_elite_in_royale] of agents will battle it out over an additional
 # [elite_additional_episodes] episodes (averaging rewards over them) to find the
 # true elite for the next generation. In paper n_elite_in_royale = 10, 
 # elite_additional_episodes = 30. For ideal performance, ensure n_elite_in_royale % n_envs = 0
-elite_additional_episodes = 6#4
-n_elite_in_royale = 4
+elite_additional_episodes = 8#4
+n_elite_in_royale = 8
 
 max_episode_length = 140#90
-gamma = 0.9975 # reward decay. 
+gamma = 0.996 # reward decay. 
 #gamma_func = lambda x : 0.015*x + 0.98
-n_population = 96#100
+n_population = 88#100
 sigma = 0.002 # guassian std scaling
 
 scud_debug = False
@@ -109,14 +109,14 @@ def train(env, n_envs, no_op_vec, resume_trianing):
         refbot_names = os.listdir(util.get_savedir('refbots'))
         refbot_names = sorted(refbot_names, reverse=False)
         refbot_q_names = refbot_names[-refbot_queue_length:]
-        sec = 0
-        for i in range(5, refbot_queue_length):
-            refbot_queue[i].load(util.get_savedir('refbots'), refbot_q_names[sec])
-            refbot_queue[i].refbot_position = i
-            sec = sec + 1
-        # for i in range(refbot_queue_length):
-        #     refbot_queue[i].load(util.get_savedir('refbots'), refbot_q_names[i])
+        # sec = 0
+        # for i in range(5, refbot_queue_length):
+        #     refbot_queue[i].load(util.get_savedir('refbots'), refbot_q_names[sec])
         #     refbot_queue[i].refbot_position = i
+        #     sec = sec + 1
+        for i in range(refbot_queue_length):
+            refbot_queue[i].load(util.get_savedir('refbots'), refbot_q_names[i])
+            refbot_queue[i].refbot_position = i
 
         elite = agents[0]
         elite.load(util.get_savedir(), 'elite')
@@ -204,7 +204,7 @@ def train(env, n_envs, no_op_vec, resume_trianing):
             elite_candidates = set(agents[0:n_elite_in_royale-1]) | set([elite,])
         # finding next elite by battling proposed elite candidates for some additional rounds
         #print("Evaluating elite agent...")
-        inds = np.random.random_integers(0, refbot_queue_length-1, 3)
+        inds = np.random.random_integers(0, refbot_queue_length-1, 4)
         refbots_for_elite = [refbot_queue[lolno] for lolno in inds]
         elo_ags, additional_steps, rollout_info = evaluate_fitness(env, elite_candidates, refbots_for_elite, runs=elite_additional_episodes)
         total_steps += additional_steps
@@ -347,6 +347,7 @@ def evaluate_fitness(env, agents, refbot, runs=1, debug=False):
     if type(refbot) == np.ndarray:
         assert (runs*len(agents)) % len(refbot) == 0, "Please don't be stupid. refbots={}".format(refbot)
 
+    
     queue = list(agents)
     queue = runs*queue
     init_length = len(queue)

@@ -135,14 +135,14 @@ def run_battle(a1, a2, env):
 
     #elite = a1
     #elite.load(util.get_savedir(), 'elite')
-    a1.load(util.get_savedir('checkpoints'), 'gen40elite.h5')
-    a1.name = 'gen40elite.h5'
+    a1.load(util.get_savedir('checkpoints'), 'gen260elite.h5')
+    a1.name = 'gen260elite.h5'
 
-    a2.load(util.get_savedir('checkpoints'), 'gen30elite.h5')
-    a2.name = 'gen30elite.h5'
-    #a2 = StarterBotPrime
+    #a2.load(util.get_savedir('checkpoints'), 'gen330elite.h5')
+    #a2.name = 'gen330elite.h5'
+    a2 = StarterBotPrime
 
-    agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, a1, a2, n_fights=2, max_steps=150)
+    agent1Wins, agent2Wins, early_eps, failed_eps, ties = fight(env, a1, a2, n_fights=4, max_steps=150)
     #refbot_names = os.listdir(util.get_savedir('refbots'))
     #refbot_names = sorted(refbot_names, reverse=True)
     print("[AGENT1] Elite (" + a1.name + ") wins: ", agent1Wins)
@@ -238,7 +238,7 @@ def mmr_from_checkpoints(env):
     print("ranking agents:")
     for a in agents:
         print(str(a))
-    mmrs = calculate_mmr_values(agents, env, parallel_fight, total_games=60)
+    mmrs = calculate_mmr_values(agents, env, parallel_fight, total_games=80)
     ## Will print out something like
     # ============================================================
     # MMR Rankings

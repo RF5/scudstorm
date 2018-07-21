@@ -4,7 +4,10 @@ Upgrades:
 - Camo Netting
 - Anthrax Beta
 
-Currently takes ~1.37s when running on medium-low spec PC. (GTX 680, i7-3770k)
+Currently takes ~1.51s when running on medium-low spec PC. (GTX 680, i7-3770k)
+Any reasonably decent server runtime environment should give performance
+required to run within 2s
+
 Author: Matthew Baas
 '''
 
