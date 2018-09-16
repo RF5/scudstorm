@@ -7,7 +7,7 @@ The aim of this project was
 - To see if I could make a genetic algorithm train large agents with autoregressive policies
 - To see how efficient I could make an environment training pipeline between a Java game and python.
 
-## File heirarchy description
+## File hierarchy description
 - `/logs/` contains the tensorboard log files for each run.
 - `/runs/` contains the directory where the python environment manager runs the games in parallel. Do not put things in this folder, it is automatically populated and managed from the python env scripts.
 - `/refbot/` contains some initialization for the reference bot which plays against each agent.
@@ -36,8 +36,8 @@ class OneHotLayer(tf.keras.Layers.Layer):
        return meme
 ```
 
-## Dependancies
-The code should work on Windows 10, and newer versions of linux. Please run `requirements.txt` to get all necessary dependancies. Any recent version of Java is also required to simulate the Entelect Tower Defense game.
+## Dependencies
+The code should work on Windows 10, and newer versions of linux. Please run `requirements.txt` to get all necessary dependencies. Any recent version of Java is also required to simulate the Entelect Tower Defense game.
 
 ## Acknowledgements
 1. Uber AI's paper on deep neuroevolution was an enormous inspiration and the core genetic algorithm I use is very similar to the one they use in their paper.
