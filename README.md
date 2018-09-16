@@ -43,6 +43,7 @@ The code should work on Windows 10, and newer versions of linux. Please run `req
 1. Uber AI's paper on deep neuroevolution was an enormous inspiration and the core genetic algorithm I use is very similar to the one they use in their paper.
 2. OpenAI baselines served as quite a large inspiration for parts of the environment pipeline, namely the `subproc_env_manager.py` code.
 3. Parts of Inception-v4-resnet's network architecture was used for parts of Scudstorm's network. 
+4. Entelect Software's 2018 Tower defense game is used. The .jar in this folder is their game/code. The `StarterBotPrime.py` is also a modified version of their python starter bot.
 
 ### Using this work
 Feel free to use and modify this code really however you see fit, but please do acknowledge me as the original source.
