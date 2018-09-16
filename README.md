@@ -46,4 +46,4 @@ The code should work on Windows 10, and newer versions of linux. Please run `req
 4. Entelect Software's 2018 Tower defense game is used. The .jar in this folder is their game/code. The `StarterBotPrime.py` is also a modified version of their python starter bot.
 
 ### Using this work
-Feel free to use and modify this code really however you see fit, but please do acknowledge me as the original source.
+Feel free to use and modify this code really however you see fit, but please do acknowledge me as the original source. I am Matthew Baas, a student at Stellenbosch University.
