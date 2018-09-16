@@ -1,7 +1,7 @@
 '''
 Scudstorm training orchestrator -- storm
 
-Entelect Challenge 2018
+Entelect Challenge 2018 entry
 Author: Matthew Baas
 '''
 import tensorflow as tf
