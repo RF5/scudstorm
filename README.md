@@ -15,7 +15,7 @@ The aim of this project was
 - `/common/` contains various utilities, initialization and other scripts.
 - `/deploy/` contains code for running on Entelect's server, optimized for speed of inference.
 
-### Running training
+### Running Scudstorm
 To run Scudstorm, simply go (with one of the options indicated):
 `python manager.py --mode [train, resume, test, rank]`
 - `train` mode starts the training process from scratch, randomly initializing all the agents.
